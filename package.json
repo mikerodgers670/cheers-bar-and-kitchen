@@ -1,0 +1,12 @@
+{
+  "name": "cheers-bar-and-kitchen",
+  "version": "1.0.0",
+  "description": "CHEERS Bar and Kitchen — stock, sales, and debt control with real-time sync across devices.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

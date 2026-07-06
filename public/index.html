@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHEERS Bar & Kitchen — Stock & Sales Control</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --ink: #120a16;
+  --charcoal: #1c0f24;
+  --panel: #271433;
+  --panel-raised: #33193f;
+  --line: #4a2557;
+  --gold: #f2b705;
+  --gold-bright: #ffd23f;
+  --cream: #f3ecdd;
+  --cream-dim: #c9b6cb;
+  --green: #7ea35a;
+  --red: #ff3d68;
+  --shadow: rgba(0,0,0,0.45);
+  --radius: 10px;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--ink); color: var(--cream); font-family: var(--font-body); min-height: 100vh; }
+body { background-image: radial-gradient(circle at 15% 0%, rgba(242,183,5,0.07), transparent 45%), radial-gradient(circle at 85% 100%, rgba(242,183,5,0.05), transparent 40%); }
+a { color: inherit; }
+::selection { background: var(--gold); color: var(--ink); }
+button { font-family: var(--font-body); }
+
+.center-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-hero {
+  background:
+    linear-gradient(180deg, rgba(18,10,22,0.88), rgba(18,10,22,0.94)),
+    url('https://commons.wikimedia.org/wiki/Special:FilePath/Man%20enjoys%20a%20drink%20while%20sitting%20in%20a%20modern%20indoor%20bar%20in%20the%20evening%20with%20soft%20lighting%20and%20warm%20atmosphere.jpg');
+  background-size: cover;
+  background-position: center;
+}
+.login-card { backdrop-filter: blur(2px); }
+.app-shell { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; flex-shrink: 0; background: var(--charcoal); border-right: 1px solid var(--line); padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; }
+.main { flex: 1; padding: 28px 32px 60px; max-width: 1180px; }
+@media (max-width: 860px) {
+  .app-shell { flex-direction: column; }
+  .sidebar { width: 100%; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 12px; }
+  .sidebar .brand-block { display: none; }
+  .main { padding: 20px 16px 60px; }
+}
+
+.brand-block { margin-bottom: 28px; }
+.brand-mark { width: 42px; height: 42px; background: var(--gold); clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 22px; color: var(--ink); margin-bottom: 10px; }
+.brand-name { font-family: var(--font-display); font-size: 22px; letter-spacing: 0.5px; line-height: 1; color: var(--cream); }
+.brand-sub { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cream-dim); margin-top: 4px; }
+
+.nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: var(--cream-dim); text-decoration: none; font-size: 14px; font-weight: 500; cursor: pointer; border: none; background: transparent; width: 100%; text-align: left; white-space: nowrap; }
+.nav-link:hover { background: var(--panel); color: var(--cream); }
+.nav-link.active { background: var(--panel-raised); color: var(--gold-bright); }
+.nav-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); }
+.user-chip { font-size: 12.5px; color: var(--cream-dim); padding: 4px 12px 10px; }
+.user-chip strong { color: var(--cream); display: block; font-size: 13.5px; }
+
+.login-card { width: 100%; max-width: 380px; background: var(--charcoal); border: 1px solid var(--line); border-radius: 14px; padding: 36px 32px; box-shadow: 0 20px 60px var(--shadow); }
+.login-card .brand-block { text-align: center; margin-bottom: 30px; }
+.login-card .brand-mark { margin: 0 auto 12px; }
+
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--cream-dim); margin-bottom: 6px; font-weight: 600; }
+.field input, .field select, .field textarea { width: 100%; background: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; color: var(--cream); font-size: 14.5px; font-family: var(--font-body); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--gold); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--gold); color: var(--ink); border: none; border-radius: 8px; padding: 11px 20px; font-size: 14.5px; font-weight: 700; cursor: pointer; transition: transform 0.08s ease, background 0.15s ease; }
+.btn:hover { background: var(--gold-bright); }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-block { width: 100%; }
+.btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--cream); }
+.btn-ghost:hover { background: var(--panel); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-sm { padding: 7px 12px; font-size: 13px; }
+
+.role-toggle { display: flex; gap: 8px; margin-bottom: 22px; }
+.role-toggle button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--ink); color: var(--cream-dim); font-weight: 600; font-size: 13px; cursor: pointer; }
+.role-toggle button.active { background: var(--panel-raised); border-color: var(--gold); color: var(--gold-bright); }
+
+.error-banner { background: rgba(255,61,104,0.15); border: 1px solid var(--red); color: #f0b3a4; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; margin-bottom: 16px; }
+.success-banner { background: rgba(126,163,90,0.15); border: 1px solid var(--green); color: #c9e3b0; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; margin-bottom: 16px; }
+.demo-banner { background: rgba(242,183,5,0.14); border: 1px solid var(--gold); color: var(--gold-bright); padding: 9px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 20px; font-family: var(--font-mono); letter-spacing: 0.3px; }
+
+.page-hero {
+  border-radius: 14px;
+  padding: 22px 26px;
+  margin-bottom: 22px;
+  background:
+    linear-gradient(115deg, rgba(18,10,22,0.90), rgba(41,21,57,0.78)),
+    url('https://commons.wikimedia.org/wiki/Special:FilePath/Elegant%20cocktail%20garnished%20with%20citrus%20twist%20presented%20in%20a%20stylish%20glass%20on%20a%20wooden%20bar.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--line);
+}
+.page-header { margin-bottom: 22px; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.page-title { font-family: var(--font-display); font-size: 34px; letter-spacing: 0.5px; line-height: 1; }
+.page-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold-bright); margin-bottom: 4px; }
+.page-sub { color: var(--cream-dim); font-size: 13.5px; margin-top: 6px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 26px; }
+.stat-card { background: var(--charcoal); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cream-dim); font-weight: 600; }
+.stat-value { font-family: var(--font-mono); font-size: 26px; color: var(--gold-bright); margin-top: 6px; }
+.stat-value.small { font-size: 20px; }
+
+.panel { background: var(--charcoal); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+.panel-title { font-family: var(--font-display); font-size: 20px; letter-spacing: 0.4px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--cream-dim); padding: 8px 10px; border-bottom: 1px solid var(--line); font-weight: 600; }
+td { padding: 10px; border-bottom: 1px solid rgba(71,57,42,0.5); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: var(--font-mono); }
+.text-right { text-align: right; }
+.text-dim { color: var(--cream-dim); }
+
+.badge { display: inline-block; padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+.badge-green { background: rgba(126,163,90,0.18); color: #9cc478; }
+.badge-red { background: rgba(255,61,104,0.18); color: #e08b73; }
+.badge-copper { background: rgba(242,183,5,0.2); color: var(--gold-bright); }
+
+.category-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.category-tabs button { padding: 8px 16px; border-radius: 100px; border: 1px solid var(--line); background: var(--charcoal); color: var(--cream-dim); font-size: 13px; font-weight: 600; cursor: pointer; }
+.category-tabs button.active { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+
+.item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.item-card { background: var(--charcoal); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; cursor: pointer; transition: border-color 0.12s ease, transform 0.08s ease; display: flex; flex-direction: column; gap: 8px; }
+.item-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.item-card.out-of-stock { opacity: 0.45; cursor: not-allowed; }
+.item-card.out-of-stock:hover { transform: none; border-color: var(--line); }
+.item-thumb { width: 100%; aspect-ratio: 1/1; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.item-thumb svg { width: 60%; height: 60%; }
+.item-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 6px; background: var(--panel-raised); }
+.item-name { font-weight: 700; font-size: 14px; line-height: 1.25; }
+.item-meta { font-size: 12px; color: var(--cream-dim); font-family: var(--font-mono); display: flex; justify-content: space-between; }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(10,8,6,0.72); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+.modal { background: var(--charcoal); border: 1px solid var(--line); border-radius: 14px; width: 100%; max-width: 420px; padding: 26px; box-shadow: 0 24px 70px var(--shadow); }
+.modal-title { font-family: var(--font-display); font-size: 22px; margin-bottom: 4px; }
+.qty-stepper { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
+.qty-stepper button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--ink); color: var(--cream); font-size: 18px; cursor: pointer; font-weight: 700; }
+.qty-stepper input { flex: 1; text-align: center; background: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--cream); font-family: var(--font-mono); font-size: 18px; }
+
+.receipt { background: #f3ecdd; color: #2a1730; border-radius: 4px; font-family: var(--font-mono); font-size: 13px; padding: 18px 20px; box-shadow: 0 10px 30px var(--shadow); }
+.receipt-row { display: flex; justify-content: space-between; padding: 3px 0; }
+.receipt-divider { border-top: 1px dashed #9c7ea0; margin: 10px 0; }
+.receipt-title { font-family: var(--font-display); font-size: 22px; text-align: center; letter-spacing: 1px; }
+.receipt-sub { text-align: center; font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.7; margin-bottom: 10px; }
+
+.toast-stack { position: fixed; top: 18px; right: 18px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: var(--panel-raised); border: 1px solid var(--line); border-left: 4px solid var(--gold); padding: 12px 16px; border-radius: 8px; font-size: 13.5px; min-width: 220px; box-shadow: 0 10px 30px var(--shadow); animation: slideIn 0.2s ease; }
+.toast.error { border-left-color: var(--red); }
+.toast.success { border-left-color: var(--green); }
+@keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--cream-dim); }
+.empty-state .glyph { font-family: var(--font-display); font-size: 40px; color: var(--line); margin-bottom: 8px; }
+
+.flex-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.gap-8 { gap: 8px; } .gap-12 { gap: 12px; }
+.mt-8 { margin-top: 8px; } .mt-16 { margin-top: 16px; } .mb-16 { margin-bottom: 16px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.search-box { display: flex; align-items: center; gap: 8px; background: var(--charcoal); border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; margin-bottom: 16px; }
+.search-box input { flex: 1; background: transparent; border: none; color: var(--cream); font-size: 14px; }
+.search-box input:focus { outline: none; }
+
+.hidden { display: none !important; }
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="toast-stack" class="toast-stack"></div>
+<div id="app"></div>
+
+<script>
+/* ============================= CATEGORY ICONS & COLORS (in-brand, no external images needed) ============================= */
+const CATEGORY_STYLE = {
+  Beer:      { color: '#ffd23f', bg: 'rgba(226,147,79,0.14)' },
+  Spirits:   { color: '#d9b25c', bg: 'rgba(217,178,92,0.14)' },
+  Wine:      { color: '#ff3d68', bg: 'rgba(255,61,104,0.14)' },
+  RTD:       { color: '#7ea3c4', bg: 'rgba(126,163,196,0.14)' },
+  Liqueurs:  { color: '#9c7ea3', bg: 'rgba(156,126,163,0.14)' },
+  Kitchen:   { color: '#7ea35a', bg: 'rgba(126,163,90,0.14)' },
+};
+
+function iconFor(category) {
+  const c = CATEGORY_STYLE[category]?.color || '#f2b705';
+  const icons = {
+    Beer: `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.6"><path d="M8 3h6l-.5 4h-5z"/><path d="M7.5 7h7l1 12.5a1.5 1.5 0 0 1-1.5 1.5H8a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M6.5 11h-1a1.5 1.5 0 0 0-1.5 1.5v3A1.5 1.5 0 0 0 5.5 17h1"/></svg>`,
+    Spirits: `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.6"><path d="M9 2h6l1 6-2 3v9a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-9l-2-3z"/><path d="M8.5 8h7"/></svg>`,
+    Wine: `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.6"><path d="M7 2h10l-1 8a4 4 0 0 1-8 0z"/><path d="M12 14v7"/><path d="M8 21h8"/></svg>`,
+    RTD: `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.6"><rect x="7" y="6" width="10" height="15" rx="2"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M7 12h10"/></svg>`,
+    Liqueurs: `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.6"><path d="M6 2h12"/><path d="M8 2v5l-3 5v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8l-3-5V2"/><path d="M6 14h12"/></svg>`,
+    Kitchen: `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.6"><path d="M4 13c0-4 3-9 8-9s8 5 8 9-3 4-8 4-8 0-8-4z"/><path d="M9 21l1.5-4"/><path d="M15 21l-1.5-4"/></svg>`,
+  };
+  return icons[category] || icons.Spirits;
+}
+
+function thumbFor(it) {
+  const bg = CATEGORY_STYLE[it.category]?.bg || 'var(--panel)';
+  const photo = PRODUCT_IMAGE[it.name];
+  if (photo) {
+    return `<div class="item-thumb" style="background:${bg}">
+      <img src="${photo}" alt="${esc(it.name)}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div style="display:none; width:100%; height:100%; align-items:center; justify-content:center;">${iconFor(it.category)}</div>
+    </div>`;
+  }
+  return `<div class="item-thumb" style="background:${bg}">${iconFor(it.category)}</div>`;
+}
+
+/* ============================= LIVE STATE (backed by the server, synced across every device) ============================= */
+const state = {
+  currentUser: null,
+  users: [],
+  items: [],
+  sales: [],
+  restocks: [],
+  reconciliations: [],
+  debts: [],
+};
+
+const PRODUCT_IMAGE = {
+  'Tusker Lager': 'https://commons.wikimedia.org/wiki/Special:FilePath/Tusker%20East%20African%20Breweries.jpg',
+};
+
+async function api(path, opts) {
+  opts = opts || {};
+  try {
+    const res = await fetch('/api' + path, {
+      method: opts.method || 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || 'Something went wrong. Please try again.' };
+    return data;
+  } catch (e) {
+    return { ok: false, error: 'Could not reach the server. Check your connection.' };
+  }
+}
+
+async function refreshState() {
+  const data = await api('/state');
+  if (!data || data.error) return;
+  state.items = data.items || [];
+  state.sales = data.sales || [];
+  state.restocks = data.restocks || [];
+  state.reconciliations = data.reconciliations || [];
+  state.debts = data.debts || [];
+  state.users = data.users || [];
+  if (state.currentUser) render();
+}
+
+setInterval(refreshState, 4000);
+
+/* ============================= HELPERS ============================= */
+function fmtKES(n) { return 'KES ' + Number(n).toLocaleString('en-KE', { maximumFractionDigits: 2 }); }
+function fmtQty(n, unit) { return (unit === 'kg' || unit === 'litre') ? Number(n).toFixed(2) : Math.round(n); }
+function fmtTime(d) { return new Date(d).toLocaleString('en-KE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+function todayStr() { return new Date().toDateString(); }
+function isToday(d) { return new Date(d).toDateString() === todayStr(); }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function toast(msg, type = 'success') {
+  const stack = document.getElementById('toast-stack');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+/* ============================= ROUTER STATE ============================= */
+let route = 'dashboard'; // admin: dashboard/inventory/sales/butchery/reconciliation/staff | seller: pos/history
+let sellerCategoryFilter = 'All';
+let sellerSearch = '';
+let inventorySearch = '';
+
+/* ============================= DOM UPDATE HELPER (keeps focus + cursor position across re-renders) ============================= */
+function setHTML(el, html) {
+  const active = document.activeElement;
+  const hadFocus = active && el.contains(active) && active.id;
+  const selStart = hadFocus && 'selectionStart' in active ? active.selectionStart : null;
+  const selEnd = hadFocus && 'selectionEnd' in active ? active.selectionEnd : null;
+  el.innerHTML = html;
+  if (hadFocus) {
+    const same = document.getElementById(active.id);
+    if (same) {
+      same.focus();
+      if (selStart != null && same.setSelectionRange) {
+        try { same.setSelectionRange(selStart, selEnd); } catch (e) {}
+      }
+    }
+  }
+}
+
+/* ============================= RENDER ROOT ============================= */
+function render() {
+  const app = document.getElementById('app');
+  if (!state.currentUser) {
+    setHTML(app, renderLogin());
+    bindLogin();
+    return;
+  }
+  if (state.currentUser.role === 'admin') {
+    setHTML(app, renderAdminShell());
+    bindAdminShell();
+  } else {
+    setHTML(app, renderSellerShell());
+    bindSellerShell();
+  }
+}
+
+/* ============================= LOGIN ============================= */
+const HERO_IMAGE = 'https://commons.wikimedia.org/wiki/Special:FilePath/Man%20enjoys%20a%20drink%20while%20sitting%20in%20a%20modern%20indoor%20bar%20in%20the%20evening%20with%20soft%20lighting%20and%20warm%20atmosphere.jpg';
+
+function renderLogin() {
+  return `
+  <div class="center-screen login-hero">
+    <div class="login-card">
+      <div class="brand-block">
+        <div class="brand-mark" style="margin:0 auto;">C</div>
+        <div class="brand-name">CHEERS BAR &amp; KITCHEN</div>
+        <div class="brand-sub">Stock &amp; sales control</div>
+      </div>
+      <div class="demo-banner">🍻 Live &amp; synced — every device sees the same stock, sales, and debts in real time.</div>
+      <div id="login-error"></div>
+      <div class="field">
+        <label>Username</label>
+        <input id="login-username" type="text" value="admin" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="login-password" type="password" value="admin1234">
+      </div>
+      <button class="btn btn-block" id="login-btn">Log in</button>
+      <div class="mt-16" style="text-align:center; font-size:12px; color:var(--cream-dim);">
+        Default admin: <strong style="color:var(--cream)">admin / admin1234</strong> &middot;
+        Default seller: <strong style="color:var(--cream)">seller / seller1234</strong>
+      </div>
+      <div class="mt-16 flex-between gap-8">
+        <button class="btn btn-ghost btn-block btn-sm" id="quick-admin">Quick login: Admin</button>
+        <button class="btn btn-ghost btn-block btn-sm" id="quick-seller">Quick login: Seller</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindLogin() {
+  const doLogin = async (u, p) => {
+    const btn = document.getElementById('login-btn');
+    const errBox = document.getElementById('login-error');
+    errBox.innerHTML = '';
+    btn.disabled = true;
+    const data = await api('/login', { method: 'POST', body: { username: u, password: p } });
+    btn.disabled = false;
+    if (!data.ok) {
+      errBox.innerHTML = `<div class="error-banner">${esc(data.error || 'Incorrect username or password.')}</div>`;
+      return;
+    }
+    state.currentUser = data.user;
+    route = data.user.role === 'admin' ? 'dashboard' : 'pos';
+    await refreshState();
+    render();
+  };
+  document.getElementById('login-btn').onclick = () => {
+    doLogin(document.getElementById('login-username').value.trim(), document.getElementById('login-password').value);
+  };
+  document.getElementById('login-password').onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('login-btn').click(); };
+  document.getElementById('quick-admin').onclick = () => doLogin('admin', 'admin1234');
+  document.getElementById('quick-seller').onclick = () => doLogin('seller', 'seller1234');
+}
+
+/* ============================= ADMIN SHELL ============================= */
+const ADMIN_NAV = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'inventory', label: 'Inventory' },
+  { key: 'sales', label: 'Sales Log' },
+  { key: 'debts', label: 'Debts' },
+  { key: 'butchery', label: 'Butchery' },
+  { key: 'reconciliation', label: 'Reconciliation' },
+  { key: 'staff', label: 'Staff' },
+];
+
+function renderAdminShell() {
+  return `
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">C</div>
+        <div class="brand-name">CHEERS</div>
+        <div class="brand-sub">Bar &amp; Kitchen</div>
+      </div>
+      ${ADMIN_NAV.map(n => `<button class="nav-link ${route===n.key?'active':''}" data-nav="${n.key}">${n.label}</button>`).join('')}
+      <div class="nav-footer">
+        <div class="user-chip"><strong>${esc(state.currentUser.displayName)}</strong>Admin</div>
+        <button class="nav-link" id="logout-btn">Log out</button>
+      </div>
+    </div>
+    <div class="main" id="main-content">${renderAdminPage()}</div>
+  </div>`;
+}
+
+function renderAdminPage() {
+  switch (route) {
+    case 'dashboard': return pageDashboard();
+    case 'inventory': return pageInventory();
+    case 'sales': return pageSalesLog();
+    case 'debts': return pageAdminDebts();
+    case 'butchery': return pageButchery();
+    case 'reconciliation': return pageReconciliation();
+    case 'staff': return pageStaff();
+    default: return pageDashboard();
+  }
+}
+
+function bindAdminShell() {
+  document.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.onclick = () => { route = btn.dataset.nav; render(); };
+  });
+  document.getElementById('logout-btn').onclick = () => { state.currentUser = null; render(); };
+  bindAdminPage();
+}
+
+function bindAdminPage() {
+  if (route === 'dashboard') return;
+  if (route === 'inventory') return bindInventory();
+  if (route === 'sales') return bindSalesLog();
+  if (route === 'debts') return bindAdminDebts();
+  if (route === 'butchery') return bindButchery();
+  if (route === 'reconciliation') return bindReconciliation();
+  if (route === 'staff') return bindStaff();
+}
+
+function reRenderMain() {
+  setHTML(document.getElementById('main-content'), renderAdminPage());
+  bindAdminPage();
+}
+
+/* ---------- DASHBOARD ---------- */
+function pageDashboard() {
+  const todaySales = state.sales.filter(s => isToday(s.time));
+  const totalRevenue = todaySales.reduce((a, s) => a + s.total, 0);
+  const totalUnits = todaySales.length;
+  const lowStock = state.items.filter(i => i.stock <= i.threshold);
+  const bySeller = {};
+  todaySales.forEach(s => { bySeller[s.seller] = (bySeller[s.seller] || 0) + s.total; });
+
+  return `
+    <div class="page-hero">
+      <div class="page-header" style="margin-bottom:0;">
+        <div>
+          <div class="page-eyebrow">Overview</div>
+          <div class="page-title">Today's Floor</div>
+          <div class="page-sub">${new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Revenue Today</div><div class="stat-value">${fmtKES(totalRevenue)}</div></div>
+      <div class="stat-card"><div class="stat-label">Sales Recorded</div><div class="stat-value">${totalUnits}</div></div>
+      <div class="stat-card"><div class="stat-label">Low Stock Items</div><div class="stat-value" style="color:${lowStock.length?'var(--red)':'var(--gold-bright)'}">${lowStock.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Catalog Items</div><div class="stat-value">${state.items.length}</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-title">Sales by Staff Today</div>
+        ${Object.keys(bySeller).length === 0 ? emptyState('No sales recorded yet today.') : `
+          <table><thead><tr><th>Staff</th><th class="text-right">Total</th></tr></thead><tbody>
+          ${Object.entries(bySeller).map(([name, total]) => `<tr><td>${esc(name)}</td><td class="text-right mono">${fmtKES(total)}</td></tr>`).join('')}
+          </tbody></table>`}
+      </div>
+      <div class="panel">
+        <div class="panel-title">Low Stock Alerts</div>
+        ${lowStock.length === 0 ? emptyState('All items are above their threshold.') : `
+          <table><thead><tr><th>Item</th><th class="text-right">Left</th></tr></thead><tbody>
+          ${lowStock.map(i => `<tr><td>${esc(i.name)}</td><td class="text-right mono" style="color:var(--red)">${fmtQty(i.stock, i.unit)} ${i.unit}</td></tr>`).join('')}
+          </tbody></table>`}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Recent Sales</div>
+      ${renderRecentSalesTable(state.sales.slice(-8).reverse())}
+    </div>
+  `;
+}
+
+function renderRecentSalesTable(sales) {
+  if (sales.length === 0) return emptyState('No sales yet.');
+  return `<table><thead><tr><th>Time</th><th>Item</th><th>Qty</th><th>Staff</th><th class="text-right">Total</th></tr></thead><tbody>
+    ${sales.map(s => `<tr>
+      <td class="text-dim mono">${fmtTime(s.time)}</td>
+      <td>${esc(s.itemName)}</td>
+      <td class="mono">${fmtQty(s.qty, s.unit)} ${s.unit}</td>
+      <td>${esc(s.seller)}</td>
+      <td class="text-right mono">${fmtKES(s.total)}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function emptyState(text) {
+  return `<div class="empty-state"><div class="glyph">—</div>${esc(text)}</div>`;
+}
+
+/* ---------- INVENTORY ---------- */
+function pageInventory() {
+  const items = state.items
+    .filter(i => i.category !== 'Kitchen')
+    .filter(i => (i.name + i.brand + i.category).toLowerCase().includes(inventorySearch.toLowerCase()));
+
+  return `
+    <div class="page-header">
+      <div>
+        <div class="page-eyebrow">Catalog</div>
+        <div class="page-title">Inventory</div>
+        <div class="page-sub">Search a brand, add it to the catalog, and set how many are available.</div>
+      </div>
+      <button class="btn" id="add-item-btn">+ Add Item</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Add a new item</div>
+      <div id="add-item-form">
+        <div class="grid-2">
+          <div class="field"><label>Item name</label><input id="new-name" placeholder="e.g. Tusker Lager"></div>
+          <div class="field"><label>Brand</label><input id="new-brand" placeholder="e.g. Tusker"></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Category</label>
+            <select id="new-category">
+              <option>Beer</option><option>Spirits</option><option>Wine</option><option>RTD</option><option>Liqueurs</option>
+            </select>
+          </div>
+          <div class="field"><label>Unit</label>
+            <select id="new-unit"><option>bottle</option><option>litre</option><option>shot</option><option>crate</option></select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Price (KES)</label><input id="new-price" type="number" min="0" placeholder="250"></div>
+          <div class="field"><label>Opening stock</label><input id="new-stock" type="number" min="0" placeholder="24"></div>
+        </div>
+        <div class="field"><label>Low stock alert threshold</label><input id="new-threshold" type="number" min="0" placeholder="5"></div>
+        <button class="btn" id="save-item-btn">Add to catalog</button>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <span>🔍</span>
+      <input id="inventory-search" placeholder="Search catalog by name, brand, or category..." value="${esc(inventorySearch)}">
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Catalog (${items.length})</div>
+      ${items.length === 0 ? emptyState('No items match your search.') : `
+      <table><thead><tr><th>Item</th><th>Category</th><th class="text-right">Price</th><th class="text-right">Stock</th><th class="text-right">Restock</th></tr></thead><tbody>
+      ${items.map(i => `<tr>
+        <td><strong>${esc(i.name)}</strong><div class="text-dim" style="font-size:12px;">${esc(i.brand)}</div></td>
+        <td><span class="badge badge-copper">${i.category}</span></td>
+        <td class="text-right mono">${fmtKES(i.price)}</td>
+        <td class="text-right mono" style="color:${i.stock<=i.threshold?'var(--red)':'var(--cream)'}">${fmtQty(i.stock, i.unit)} ${i.unit}</td>
+        <td class="text-right"><button class="btn btn-ghost btn-sm" data-restock="${i.id}">+ Restock</button></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+
+function bindInventory() {
+  document.getElementById('inventory-search').oninput = (e) => { inventorySearch = e.target.value; reRenderMain(); };
+  document.getElementById('save-item-btn').onclick = async () => {
+    const name = document.getElementById('new-name').value.trim();
+    const brand = document.getElementById('new-brand').value.trim();
+    const category = document.getElementById('new-category').value;
+    const unit = document.getElementById('new-unit').value;
+    const price = parseFloat(document.getElementById('new-price').value);
+    const stock = parseFloat(document.getElementById('new-stock').value);
+    const threshold = parseFloat(document.getElementById('new-threshold').value) || 5;
+    if (!name || !brand || isNaN(price) || isNaN(stock)) {
+      toast('Please fill in item name, brand, price, and opening stock.', 'error');
+      return;
+    }
+    const data = await api('/items', { method: 'POST', body: { name, brand, category, unit, price, stock, threshold } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`${name} added to catalog.`, 'success');
+    await refreshState();
+    reRenderMain();
+  };
+  document.querySelectorAll('[data-restock]').forEach(btn => {
+    btn.onclick = () => openRestockModal(parseInt(btn.dataset.restock));
+  });
+}
+
+function openRestockModal(itemId) {
+  const it = state.items.find(i => i.id === itemId);
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">Restock ${esc(it.name)}</div>
+      <div class="page-sub mb-16">Current stock: ${fmtQty(it.stock, it.unit)} ${it.unit}</div>
+      <div class="field"><label>Quantity received (${it.unit})</label><input id="restock-qty" type="number" min="0" step="any" autofocus></div>
+      <div class="flex-between gap-8 mt-16">
+        <button class="btn btn-ghost btn-block" id="restock-cancel">Cancel</button>
+        <button class="btn btn-block" id="restock-confirm">Confirm restock</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#restock-cancel').onclick = () => backdrop.remove();
+  backdrop.querySelector('#restock-confirm').onclick = async () => {
+    const qty = parseFloat(document.getElementById('restock-qty').value);
+    if (isNaN(qty) || qty <= 0) { toast('Enter a valid quantity.', 'error'); return; }
+    const data = await api(`/items/${it.id}/restock`, { method: 'POST', body: { qty } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`Restocked ${fmtQty(qty, it.unit)} ${it.unit} of ${it.name}.`, 'success');
+    backdrop.remove();
+    await refreshState();
+    reRenderMain();
+  };
+}
+
+/* ---------- SALES LOG ---------- */
+function pageSalesLog() {
+  const sales = [...state.sales].reverse();
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Records</div><div class="page-title">Sales Log</div><div class="page-sub">Every sale recorded by every seller, in order.</div></div>
+    </div>
+    <div class="panel">
+      ${sales.length === 0 ? emptyState('No sales recorded yet. Log in as a seller to record one.') : renderRecentSalesTable(sales)}
+    </div>
+  `;
+}
+function bindSalesLog() {}
+
+/* ---------- DEBTS (ADMIN) ---------- */
+function pageAdminDebts() {
+  const debts = state.debts.slice().reverse();
+  const outstanding = state.debts.filter(d => !d.settled);
+  const totalOutstanding = outstanding.reduce((a, d) => a + d.amount, 0);
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Credit</div><div class="page-title">Debts</div><div class="page-sub">Every debt a seller has recorded, from every device.</div></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Outstanding</div><div class="stat-value" style="color:${outstanding.length?'var(--red)':'var(--gold-bright)'}">${fmtKES(totalOutstanding)}</div></div>
+      <div class="stat-card"><div class="stat-label">Open Debts</div><div class="stat-value">${outstanding.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Recorded</div><div class="stat-value small">${state.debts.length}</div></div>
+    </div>
+    <div class="panel">
+      ${debts.length === 0 ? emptyState('No debts recorded yet.') : `
+      <table><thead><tr><th>Customer</th><th>Phone</th><th>Item</th><th>Recorded by</th><th>Time</th><th class="text-right">Amount</th><th class="text-right">Status</th></tr></thead><tbody>
+      ${debts.map(d => `<tr>
+        <td><strong>${esc(d.customerName)}</strong>${d.note ? `<div class="text-dim" style="font-size:12px;">${esc(d.note)}</div>` : ''}</td>
+        <td class="mono">${esc(d.phone)}</td>
+        <td>${esc(d.itemName || '—')}</td>
+        <td>${esc(d.seller)}</td>
+        <td class="text-dim mono">${fmtTime(d.time)}</td>
+        <td class="text-right mono">${fmtKES(d.amount)}</td>
+        <td class="text-right">${d.settled
+          ? `<span class="badge badge-green">Settled</span>`
+          : `<button class="btn btn-ghost btn-sm" data-settle="${d.id}">Mark settled</button>`}</td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function bindAdminDebts() {
+  document.querySelectorAll('[data-settle]').forEach(btn => {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const data = await api(`/debts/${btn.dataset.settle}/settle`, { method: 'POST' });
+      if (!data.ok) { toast(data.error, 'error'); return; }
+      toast('Debt marked as settled.', 'success');
+      await refreshState();
+      reRenderMain();
+    };
+  });
+}
+
+/* ---------- BUTCHERY ---------- */
+function pageButchery() {
+  const meat = state.items.find(i => i.category === 'Kitchen' && i.name === 'Goat Meat');
+  const meatSales = state.sales.filter(s => s.itemId === meat.id).slice().reverse();
+  const soldToday = state.sales.filter(s => s.itemId === meat.id && isToday(s.time)).reduce((a, s) => a + s.qty, 0);
+
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Kitchen</div><div class="page-title">Butchery</div><div class="page-sub">Track the goat carcass by kg — delivery in, sales out.</div></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Remaining Stock</div><div class="stat-value" style="color:${meat.stock<=meat.threshold?'var(--red)':'var(--gold-bright)'}">${fmtQty(meat.stock, 'kg')} kg</div></div>
+      <div class="stat-card"><div class="stat-label">Sold Today</div><div class="stat-value">${fmtQty(soldToday, 'kg')} kg</div></div>
+      <div class="stat-card"><div class="stat-label">Price / kg</div><div class="stat-value small">${fmtKES(meat.price)}</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Log today's delivery</div>
+      <div class="grid-2">
+        <div class="field"><label>Kg delivered today (whole goat weight)</label><input id="meat-delivery" type="number" min="0" step="0.1" placeholder="e.g. 25"></div>
+        <div class="field"><label>Price per kg (KES)</label><input id="meat-price" type="number" min="0" value="${meat.price}"></div>
+      </div>
+      <button class="btn" id="meat-delivery-btn">Log delivery</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Meat Sales Log</div>
+      ${meatSales.length === 0 ? emptyState('No meat sales recorded yet.') : `
+      <table><thead><tr><th>Time</th><th>Kg sold</th><th>Staff</th><th class="text-right">Total</th></tr></thead><tbody>
+      ${meatSales.map(s => `<tr><td class="mono text-dim">${fmtTime(s.time)}</td><td class="mono">${fmtQty(s.qty,'kg')} kg</td><td>${esc(s.seller)}</td><td class="text-right mono">${fmtKES(s.total)}</td></tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function bindButchery() {
+  const meat = state.items.find(i => i.category === 'Kitchen' && i.name === 'Goat Meat');
+  document.getElementById('meat-delivery-btn').onclick = async () => {
+    const qty = parseFloat(document.getElementById('meat-delivery').value);
+    const price = parseFloat(document.getElementById('meat-price').value);
+    if (isNaN(qty) || qty <= 0) { toast('Enter a valid delivery weight.', 'error'); return; }
+    const data = await api('/butchery/delivery', { method: 'POST', body: { qty, price } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`Logged ${fmtQty(qty,'kg')} kg delivery. Stock now ${fmtQty(data.item.stock,'kg')} kg.`, 'success');
+    await refreshState();
+    reRenderMain();
+  };
+}
+
+/* ---------- RECONCILIATION ---------- */
+function pageReconciliation() {
+  const items = state.items;
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Anti-theft</div><div class="page-title">Reconciliation</div>
+      <div class="page-sub">Physically count what's on the shelf, enter it below — a negative variance means stock is unaccounted for.</div></div>
+    </div>
+    <div class="panel">
+      <table><thead><tr><th>Item</th><th class="text-right">System Stock</th><th class="text-right">Physical Count</th><th class="text-right">Variance</th></tr></thead><tbody>
+      ${items.map(i => `<tr>
+        <td>${esc(i.name)}</td>
+        <td class="text-right mono">${fmtQty(i.stock, i.unit)} ${i.unit}</td>
+        <td class="text-right"><input type="number" step="any" style="width:90px; background:var(--ink); border:1px solid var(--line); border-radius:6px; color:var(--cream); padding:6px 8px; text-align:right;" data-count="${i.id}" placeholder="${fmtQty(i.stock, i.unit)}"></td>
+        <td class="text-right mono" id="variance-${i.id}">—</td>
+      </tr>`).join('')}
+      </tbody></table>
+      <button class="btn mt-16" id="run-reconciliation">Run reconciliation</button>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Reconciliation History</div>
+      ${state.reconciliations.length === 0 ? emptyState('No reconciliations run yet.') : `
+      <table><thead><tr><th>Time</th><th>Item</th><th class="text-right">System</th><th class="text-right">Counted</th><th class="text-right">Variance</th></tr></thead><tbody>
+      ${state.reconciliations.slice().reverse().map(r => `<tr>
+        <td class="mono text-dim">${fmtTime(r.time)}</td>
+        <td>${esc(r.itemName)}</td>
+        <td class="text-right mono">${r.systemStock}</td>
+        <td class="text-right mono">${r.physicalCount}</td>
+        <td class="text-right mono"><span class="badge ${r.variance < 0 ? 'badge-red' : r.variance > 0 ? 'badge-copper' : 'badge-green'}">${r.variance > 0 ? '+' : ''}${r.variance}</span></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function bindReconciliation() {
+  document.querySelectorAll('[data-count]').forEach(inp => {
+    inp.oninput = () => {
+      const it = state.items.find(i => i.id === parseInt(inp.dataset.count));
+      const val = parseFloat(inp.value);
+      const cell = document.getElementById('variance-' + it.id);
+      if (isNaN(val)) { cell.textContent = '—'; return; }
+      const variance = +(val - it.stock).toFixed(2);
+      cell.innerHTML = `<span class="badge ${variance < 0 ? 'badge-red' : variance > 0 ? 'badge-copper' : 'badge-green'}">${variance > 0 ? '+' : ''}${variance}</span>`;
+    };
+  });
+  document.getElementById('run-reconciliation').onclick = async () => {
+    const entries = [];
+    document.querySelectorAll('[data-count]').forEach(inp => {
+      const val = parseFloat(inp.value);
+      if (isNaN(val)) return;
+      entries.push({ itemId: parseInt(inp.dataset.count), physicalCount: val });
+    });
+    if (entries.length === 0) { toast('Enter at least one physical count.', 'error'); return; }
+    const data = await api('/reconciliation', { method: 'POST', body: { entries } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`Reconciliation logged for ${data.logged} item(s).`, 'success');
+    await refreshState();
+    reRenderMain();
+  };
+}
+
+/* ---------- STAFF ---------- */
+function pageStaff() {
+  const sellers = state.users.filter(u => u.role === 'seller');
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Team</div><div class="page-title">Staff</div><div class="page-sub">Sellers who can log in and record sales at the counter.</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Add a seller</div>
+      <div class="grid-2">
+        <div class="field"><label>Display name</label><input id="staff-name" placeholder="e.g. James"></div>
+        <div class="field"><label>Username</label><input id="staff-username" placeholder="e.g. james"></div>
+      </div>
+      <div class="field"><label>Password</label><input id="staff-password" type="text" placeholder="Set a password"></div>
+      <button class="btn" id="add-staff-btn">Add seller</button>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Current Staff</div>
+      <table><thead><tr><th>Name</th><th>Username</th><th class="text-right">Sales Today</th></tr></thead><tbody>
+      ${sellers.map(s => {
+        const total = state.sales.filter(sale => sale.seller === s.displayName && isToday(sale.time)).reduce((a, x) => a + x.total, 0);
+        return `<tr><td>${esc(s.displayName)}</td><td class="mono text-dim">${esc(s.username)}</td><td class="text-right mono">${fmtKES(total)}</td></tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>
+  `;
+}
+function bindStaff() {
+  document.getElementById('add-staff-btn').onclick = async () => {
+    const name = document.getElementById('staff-name').value.trim();
+    const username = document.getElementById('staff-username').value.trim();
+    const password = document.getElementById('staff-password').value.trim();
+    if (!name || !username || !password) { toast('Fill in all fields.', 'error'); return; }
+    const data = await api('/staff', { method: 'POST', body: { displayName: name, username, password } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`${name} added as a seller.`, 'success');
+    await refreshState();
+    reRenderMain();
+  };
+}
+
+/* ============================= SELLER SHELL (POS) ============================= */
+const SELLER_NAV = [
+  { key: 'pos', label: 'Sell' },
+  { key: 'debts', label: 'Debts' },
+  { key: 'history', label: 'My Sales' },
+];
+
+function renderSellerShell() {
+  return `
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">C</div>
+        <div class="brand-name">CHEERS</div>
+        <div class="brand-sub">Bar &amp; Kitchen</div>
+      </div>
+      ${SELLER_NAV.map(n => `<button class="nav-link ${route===n.key?'active':''}" data-nav="${n.key}">${n.label}</button>`).join('')}
+      <div class="nav-footer">
+        <div class="user-chip"><strong>${esc(state.currentUser.displayName)}</strong>Seller</div>
+        <button class="nav-link" id="logout-btn">Log out</button>
+      </div>
+    </div>
+    <div class="main" id="main-content">${renderSellerPage()}</div>
+  </div>`;
+}
+
+function renderSellerPage() {
+  if (route === 'history') return pageSellerHistory();
+  if (route === 'debts') return pageSellerDebts();
+  return pagePOS();
+}
+
+function bindSellerShell() {
+  document.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.onclick = () => { route = btn.dataset.nav; render(); };
+  });
+  document.getElementById('logout-btn').onclick = () => { state.currentUser = null; render(); };
+  bindSellerPage();
+}
+
+function bindSellerPage() {
+  if (route === 'history') return;
+  if (route === 'debts') return bindSellerDebts();
+  bindPOS();
+}
+
+function reRenderSellerMain() {
+  setHTML(document.getElementById('main-content'), renderSellerPage());
+  bindSellerPage();
+}
+
+/* ---------- POS ---------- */
+function pagePOS() {
+  const categories = ['All', ...new Set(state.items.map(i => i.category))];
+  const filtered = state.items.filter(i => {
+    const matchesCat = sellerCategoryFilter === 'All' || i.category === sellerCategoryFilter;
+    const matchesSearch = (i.name + i.brand).toLowerCase().includes(sellerSearch.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
+  return `
+    <div class="page-hero">
+      <div class="page-header" style="margin-bottom:0;">
+        <div><div class="page-eyebrow">Point of Sale</div><div class="page-title">Record a Sale</div><div class="page-sub">Tap an item, set the quantity, confirm.</div></div>
+      </div>
+    </div>
+    <div class="search-box">
+      <span>🔍</span>
+      <input id="pos-search" placeholder="Search item or brand..." value="${esc(sellerSearch)}">
+    </div>
+    <div class="category-tabs">
+      ${categories.map(c => `<button class="${sellerCategoryFilter===c?'active':''}" data-cat="${c}">${c}</button>`).join('')}
+    </div>
+    <div class="item-grid">
+      ${filtered.map(i => `
+        <div class="item-card ${i.stock<=0?'out-of-stock':''}" data-sell="${i.id}">
+          ${thumbFor(i)}
+          <div class="item-name">${esc(i.name)}</div>
+          <div class="item-meta"><span>${fmtKES(i.price)}</span><span>${fmtQty(i.stock, i.unit)} ${i.unit}</span></div>
+        </div>
+      `).join('')}
+    </div>
+    ${filtered.length === 0 ? emptyState('No items match.') : ''}
+  `;
+}
+
+function bindPOS() {
+  document.getElementById('pos-search').oninput = (e) => { sellerSearch = e.target.value; reRenderSellerMain(); };
+  document.querySelectorAll('[data-cat]').forEach(btn => {
+    btn.onclick = () => { sellerCategoryFilter = btn.dataset.cat; reRenderSellerMain(); };
+  });
+  document.querySelectorAll('[data-sell]').forEach(card => {
+    card.onclick = () => {
+      const it = state.items.find(i => i.id === parseInt(card.dataset.sell));
+      if (it.stock <= 0) { toast(`${it.name} is out of stock.`, 'error'); return; }
+      openSaleModal(it);
+    };
+  });
+}
+
+function openSaleModal(it) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  const step = (it.unit === 'kg' || it.unit === 'litre') ? 0.1 : 1;
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">${esc(it.name)}</div>
+      <div class="page-sub">${fmtKES(it.price)} per ${it.unit} · ${fmtQty(it.stock, it.unit)} ${it.unit} available</div>
+      <div class="qty-stepper">
+        <button id="qty-minus">−</button>
+        <input id="qty-input" type="number" min="${step}" step="${step}" value="1">
+        <button id="qty-plus">+</button>
+      </div>
+      <div class="flex-between"><span class="text-dim">Total</span><span class="mono" id="qty-total" style="font-size:18px; color:var(--gold-bright);">${fmtKES(it.price)}</span></div>
+      <div class="flex-between gap-8 mt-16">
+        <button class="btn btn-ghost btn-block" id="sale-cancel">Cancel</button>
+        <button class="btn btn-block" id="sale-confirm">Record sale</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  const qtyInput = backdrop.querySelector('#qty-input');
+  const totalEl = backdrop.querySelector('#qty-total');
+  const updateTotal = () => {
+    const q = parseFloat(qtyInput.value) || 0;
+    totalEl.textContent = fmtKES(q * it.price);
+  };
+  backdrop.querySelector('#qty-minus').onclick = () => { qtyInput.value = Math.max(step, (parseFloat(qtyInput.value)||0) - step).toFixed(step<1?1:0); updateTotal(); };
+  backdrop.querySelector('#qty-plus').onclick = () => { qtyInput.value = ((parseFloat(qtyInput.value)||0) + step).toFixed(step<1?1:0); updateTotal(); };
+  qtyInput.oninput = updateTotal;
+  backdrop.querySelector('#sale-cancel').onclick = () => backdrop.remove();
+  backdrop.querySelector('#sale-confirm').onclick = async () => {
+    const qty = parseFloat(qtyInput.value);
+    if (isNaN(qty) || qty <= 0) { toast('Enter a valid quantity.', 'error'); return; }
+    if (qty > it.stock) { toast(`Only ${fmtQty(it.stock, it.unit)} ${it.unit} left — cannot oversell.`, 'error'); return; }
+    const confirmBtn = backdrop.querySelector('#sale-confirm');
+    confirmBtn.disabled = true;
+    const data = await api('/sales', { method: 'POST', body: { itemId: it.id, qty, seller: state.currentUser.displayName } });
+    confirmBtn.disabled = false;
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    backdrop.remove();
+    await refreshState();
+    showReceipt(data.sale);
+    reRenderSellerMain();
+  };
+}
+
+function showReceipt(sale) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" style="padding:0; background:transparent; box-shadow:none;">
+      <div class="receipt">
+        <div class="receipt-title">CHEERS</div>
+        <div class="receipt-sub">Bar &amp; Kitchen</div>
+        <div class="receipt-divider"></div>
+        <div class="receipt-row"><span>${esc(sale.itemName)}</span><span>${fmtQty(sale.qty, sale.unit)} ${sale.unit}</span></div>
+        <div class="receipt-row"><span>Unit price</span><span>${fmtKES(sale.price)}</span></div>
+        <div class="receipt-divider"></div>
+        <div class="receipt-row" style="font-weight:700;"><span>TOTAL</span><span>${fmtKES(sale.total)}</span></div>
+        <div class="receipt-divider"></div>
+        <div class="receipt-row"><span>Served by</span><span>${esc(sale.seller)}</span></div>
+        <div class="receipt-row"><span>Time</span><span>${fmtTime(sale.time)}</span></div>
+      </div>
+      <button class="btn btn-block mt-16" id="receipt-close">Done</button>
+    </div>`;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#receipt-close').onclick = () => backdrop.remove();
+  toast(`Sale recorded: ${sale.itemName} — ${fmtKES(sale.total)}`, 'success');
+}
+
+/* ---------- SELLER HISTORY ---------- */
+function pageSellerHistory() {
+  const mySales = state.sales.filter(s => s.seller === state.currentUser.displayName).slice().reverse();
+  const todayTotal = mySales.filter(s => isToday(s.time)).reduce((a, s) => a + s.total, 0);
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Personal</div><div class="page-title">My Sales</div><div class="page-sub">Everything you've recorded this session.</div></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Today's Total</div><div class="stat-value">${fmtKES(todayTotal)}</div></div>
+      <div class="stat-card"><div class="stat-label">Sales Recorded</div><div class="stat-value">${mySales.length}</div></div>
+    </div>
+    <div class="panel">
+      ${mySales.length === 0 ? emptyState('You have not recorded any sales yet.') : renderRecentSalesTable(mySales)}
+    </div>
+  `;
+}
+
+/* ---------- SELLER DEBTS ---------- */
+function pageSellerDebts() {
+  const myDebts = state.debts.filter(d => d.seller === state.currentUser.displayName).slice().reverse();
+  const outstanding = myDebts.filter(d => !d.settled).reduce((a, d) => a + d.amount, 0);
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">Credit</div><div class="page-title">Debts</div><div class="page-sub">Record a customer's tab — the owner sees this instantly.</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">New debt</div>
+      <div class="grid-2">
+        <div class="field"><label>Customer name</label><input id="debt-name" placeholder="e.g. Peter Mwangi"></div>
+        <div class="field"><label>Phone number</label><input id="debt-phone" placeholder="e.g. 0712345678"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Amount (KES)</label><input id="debt-amount" type="number" min="0" placeholder="500"></div>
+        <div class="field"><label>Item / description (optional)</label><input id="debt-item" placeholder="e.g. 2x Tusker"></div>
+      </div>
+      <div class="field"><label>Note (optional)</label><input id="debt-note" placeholder="Any extra detail"></div>
+      <button class="btn" id="save-debt-btn">Record debt</button>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">My Outstanding</div><div class="stat-value" style="color:${outstanding?'var(--red)':'var(--gold-bright)'}">${fmtKES(outstanding)}</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">My recorded debts</div>
+      ${myDebts.length === 0 ? emptyState('You have not recorded any debts yet.') : `
+      <table><thead><tr><th>Customer</th><th>Phone</th><th>Item</th><th class="text-right">Amount</th><th class="text-right">Status</th></tr></thead><tbody>
+      ${myDebts.map(d => `<tr>
+        <td><strong>${esc(d.customerName)}</strong></td>
+        <td class="mono">${esc(d.phone)}</td>
+        <td>${esc(d.itemName || '—')}</td>
+        <td class="text-right mono">${fmtKES(d.amount)}</td>
+        <td class="text-right"><span class="badge ${d.settled ? 'badge-green' : 'badge-red'}">${d.settled ? 'Settled' : 'Owing'}</span></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+  `;
+}
+function bindSellerDebts() {
+  document.getElementById('save-debt-btn').onclick = async () => {
+    const customerName = document.getElementById('debt-name').value.trim();
+    const phone = document.getElementById('debt-phone').value.trim();
+    const amount = parseFloat(document.getElementById('debt-amount').value);
+    const itemName = document.getElementById('debt-item').value.trim();
+    const note = document.getElementById('debt-note').value.trim();
+    if (!customerName || !phone || isNaN(amount) || amount <= 0) {
+      toast('Customer name, phone, and a valid amount are required.', 'error');
+      return;
+    }
+    const data = await api('/debts', { method: 'POST', body: { customerName, phone, amount, itemName, note, seller: state.currentUser.displayName } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`Debt of ${fmtKES(amount)} recorded for ${customerName}.`, 'success');
+    await refreshState();
+    reRenderSellerMain();
+  };
+}
+
+/* ============================= BOOT ============================= */
+render();
+</script>
+</body>
+</html>
