@@ -247,5 +247,15 @@ app.delete('/api/staff/:username', (req, res) => {
   res.json({ ok: true, removed: before - db.users.length });
 });
 
+app.post('/api/staff/:username/password', (req, res) => {
+  const user = db.users.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ ok: false, error: 'Seller not found.' });
+  const { password } = req.body || {};
+  if (!password || !password.trim()) return res.status(400).json({ ok: false, error: 'Enter a new password.' });
+  user.password = password.trim();
+  save();
+  res.json({ ok: true });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`CHEERS Bar and Kitchen server running on port ${PORT}`));
