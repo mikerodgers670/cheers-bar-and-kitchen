@@ -24,8 +24,6 @@ function seedData() {
     uid,
     users: [
       { username: 'admin', password: 'admin1234', role: 'admin', displayName: 'Owner' },
-      { username: 'seller', password: 'seller1234', role: 'seller', displayName: 'Counter Staff' },
-      { username: 'seller2', password: 'seller1234', role: 'seller', displayName: 'Evening Staff' },
     ],
     items: [
       item('Tusker Lager', 'Tusker', 'Beer', 'bottle', 250),
@@ -141,6 +139,16 @@ app.post('/api/items/:id/restock', (req, res) => {
   db.restocks.push(restock);
   save();
   res.json({ ok: true, item: it, restock });
+});
+
+app.post('/api/items/:id/price', (req, res) => {
+  const it = findItem(req.params.id);
+  if (!it) return res.status(404).json({ ok: false, error: 'Item not found.' });
+  const price = parseFloat(req.body?.price);
+  if (isNaN(price) || price < 0) return res.status(400).json({ ok: false, error: 'Enter a valid price.' });
+  it.price = price;
+  save();
+  res.json({ ok: true, item: it });
 });
 
 /* Butchery delivery is just a restock + optional price update on Goat Meat */
