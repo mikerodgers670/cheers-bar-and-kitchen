@@ -265,6 +265,15 @@ async function refreshState() {
   state.reconciliations = data.reconciliations || [];
   state.debts = data.debts || [];
   state.users = data.users || [];
+  if (state.currentUser && state.currentUser.role === 'seller') {
+    const stillExists = state.users.some(u => u.username === state.currentUser.username);
+    if (!stillExists) {
+      state.currentUser = null;
+      toast('Your account was removed by the admin. You have been logged out.', 'error');
+      render();
+      return;
+    }
+  }
   if (state.currentUser) render();
 }
 
@@ -295,6 +304,10 @@ let inventorySearch = '';
 /* Draft buffers: these hold in-progress form text so the 4s background sync
    (refreshState -> render) never wipes out what someone is mid-typing. */
 let debtDraft = { customerName: '', phone: '', amount: '', itemName: '', note: '' };
+let closingStockDraft = {}; // itemId -> typed string, survives the 4s poll
+let closingStockDateFilter = 'all';
+let staffDraft = { name: '', username: '', password: '' };
+let itemDraft = { name: '', brand: '', category: 'Beer', unit: 'bottle', price: '', stock: '', threshold: '' };
 
 /* ============================= DOM UPDATE HELPER (keeps focus + cursor position across re-renders) ============================= */
 function setHTML(el, html) {
@@ -544,24 +557,24 @@ function pageInventory() {
       <div class="panel-title">Add a new item</div>
       <div id="add-item-form">
         <div class="grid-2">
-          <div class="field"><label>Item name</label><input id="new-name" placeholder="e.g. Tusker Lager"></div>
-          <div class="field"><label>Brand</label><input id="new-brand" placeholder="e.g. Tusker"></div>
+          <div class="field"><label>Item name</label><input id="new-name" placeholder="e.g. Tusker Lager" value="${esc(itemDraft.name)}"></div>
+          <div class="field"><label>Brand</label><input id="new-brand" placeholder="e.g. Tusker" value="${esc(itemDraft.brand)}"></div>
         </div>
         <div class="grid-2">
           <div class="field"><label>Category</label>
             <select id="new-category">
-              <option>Beer</option><option>Spirits</option><option>Wine</option><option>RTD</option><option>Liqueurs</option>
+              <option ${itemDraft.category==='Beer'?'selected':''}>Beer</option><option ${itemDraft.category==='Spirits'?'selected':''}>Spirits</option><option ${itemDraft.category==='Wine'?'selected':''}>Wine</option><option ${itemDraft.category==='RTD'?'selected':''}>RTD</option><option ${itemDraft.category==='Liqueurs'?'selected':''}>Liqueurs</option>
             </select>
           </div>
           <div class="field"><label>Unit</label>
-            <select id="new-unit"><option>bottle</option><option>litre</option><option>shot</option><option>crate</option></select>
+            <select id="new-unit"><option ${itemDraft.unit==='bottle'?'selected':''}>bottle</option><option ${itemDraft.unit==='litre'?'selected':''}>litre</option><option ${itemDraft.unit==='shot'?'selected':''}>shot</option><option ${itemDraft.unit==='crate'?'selected':''}>crate</option></select>
           </div>
         </div>
         <div class="grid-2">
-          <div class="field"><label>Price (KES)</label><input id="new-price" type="number" min="0" placeholder="250"></div>
-          <div class="field"><label>Opening stock</label><input id="new-stock" type="number" min="0" placeholder="24"></div>
+          <div class="field"><label>Price (KES)</label><input id="new-price" type="number" min="0" placeholder="250" value="${esc(itemDraft.price)}"></div>
+          <div class="field"><label>Opening stock</label><input id="new-stock" type="number" min="0" placeholder="24" value="${esc(itemDraft.stock)}"></div>
         </div>
-        <div class="field"><label>Low stock alert threshold</label><input id="new-threshold" type="number" min="0" placeholder="5"></div>
+        <div class="field"><label>Low stock alert threshold</label><input id="new-threshold" type="number" min="0" placeholder="5" value="${esc(itemDraft.threshold)}"></div>
         <button class="btn" id="save-item-btn">Add to catalog</button>
       </div>
     </div>
@@ -589,14 +602,30 @@ function pageInventory() {
 
 function bindInventory() {
   document.getElementById('inventory-search').oninput = (e) => { inventorySearch = e.target.value; reRenderMain(); };
+
+  const nameEl = document.getElementById('new-name');
+  const brandEl = document.getElementById('new-brand');
+  const categoryEl = document.getElementById('new-category');
+  const unitEl = document.getElementById('new-unit');
+  const priceEl = document.getElementById('new-price');
+  const stockEl = document.getElementById('new-stock');
+  const thresholdEl = document.getElementById('new-threshold');
+  nameEl.oninput = (e) => { itemDraft.name = e.target.value; };
+  brandEl.oninput = (e) => { itemDraft.brand = e.target.value; };
+  categoryEl.onchange = (e) => { itemDraft.category = e.target.value; };
+  unitEl.onchange = (e) => { itemDraft.unit = e.target.value; };
+  priceEl.oninput = (e) => { itemDraft.price = e.target.value; };
+  stockEl.oninput = (e) => { itemDraft.stock = e.target.value; };
+  thresholdEl.oninput = (e) => { itemDraft.threshold = e.target.value; };
+
   document.getElementById('save-item-btn').onclick = async () => {
-    const name = document.getElementById('new-name').value.trim();
-    const brand = document.getElementById('new-brand').value.trim();
-    const category = document.getElementById('new-category').value;
-    const unit = document.getElementById('new-unit').value;
-    const price = parseFloat(document.getElementById('new-price').value);
-    const stock = parseFloat(document.getElementById('new-stock').value);
-    const threshold = parseFloat(document.getElementById('new-threshold').value) || 5;
+    const name = nameEl.value.trim();
+    const brand = brandEl.value.trim();
+    const category = categoryEl.value;
+    const unit = unitEl.value;
+    const price = parseFloat(priceEl.value);
+    const stock = parseFloat(stockEl.value);
+    const threshold = parseFloat(thresholdEl.value) || 5;
     if (!name || !brand || isNaN(price) || isNaN(stock)) {
       toast('Please fill in item name, brand, price, and opening stock.', 'error');
       return;
@@ -604,6 +633,7 @@ function bindInventory() {
     const data = await api('/items', { method: 'POST', body: { name, brand, category, unit, price, stock, threshold } });
     if (!data.ok) { toast(data.error, 'error'); return; }
     toast(`${name} added to catalog.`, 'success');
+    itemDraft = { name: '', brand: '', category: 'Beer', unit: 'bottle', price: '', stock: '', threshold: '' };
     await refreshState();
     reRenderMain();
   };
@@ -771,63 +801,53 @@ function bindButchery() {
 
 /* ---------- RECONCILIATION ---------- */
 function pageReconciliation() {
-  const items = state.items;
-  const groups = groupReconciliationsByDay(state.reconciliations);
   return `
     <div class="page-header">
       <div><div class="page-eyebrow">End of Day</div><div class="page-title">Closing Stock</div>
-      <div class="page-sub">Count what's physically left on the shelf at close of business — this becomes today's official stock record, and builds a daily history you can look back on.</div></div>
+      <div class="page-sub">Count what's physically left on the shelf at close of business — this becomes today's official stock record, and builds a daily history you can look back on. Sellers can log this too, from their own screen — it updates here automatically.</div></div>
     </div>
+    ${renderClosingStockForm()}
+    ${renderClosingStockHistory()}
+  `;
+}
+function bindReconciliation() {
+  bindClosingStockForm(() => { reRenderMain(); });
+  bindClosingStockHistoryFilter(() => { reRenderMain(); });
+}
+
+/* ---------- CLOSING STOCK (shared by admin + seller) ---------- */
+function renderClosingStockForm() {
+  const items = state.items;
+  return `
     <div class="panel">
       <div class="panel-title">Count today's closing stock</div>
       <table><thead><tr><th>Item</th><th class="text-right">System Stock</th><th class="text-right">Closing Count</th><th class="text-right">Variance</th></tr></thead><tbody>
-      ${items.map(i => `<tr>
-        <td>${esc(i.name)}</td>
-        <td class="text-right mono">${fmtQty(i.stock, i.unit)} ${i.unit}</td>
-        <td class="text-right"><input type="number" step="any" style="width:90px; background:var(--ink); border:1px solid var(--line); border-radius:6px; color:var(--cream); padding:6px 8px; text-align:right;" data-count="${i.id}" placeholder="${fmtQty(i.stock, i.unit)}"></td>
-        <td class="text-right mono" id="variance-${i.id}">—</td>
-      </tr>`).join('')}
+      ${items.map(i => {
+        const draftVal = closingStockDraft[i.id] !== undefined ? closingStockDraft[i.id] : '';
+        let varianceHtml = '—';
+        if (draftVal !== '') {
+          const val = parseFloat(draftVal);
+          if (!isNaN(val)) {
+            const variance = +(val - i.stock).toFixed(2);
+            varianceHtml = `<span class="badge ${variance < 0 ? 'badge-red' : variance > 0 ? 'badge-copper' : 'badge-green'}">${variance > 0 ? '+' : ''}${variance}</span>`;
+          }
+        }
+        return `<tr>
+          <td>${esc(i.name)}</td>
+          <td class="text-right mono">${fmtQty(i.stock, i.unit)} ${i.unit}</td>
+          <td class="text-right"><input type="number" step="any" style="width:90px; background:var(--ink); border:1px solid var(--line); border-radius:6px; color:var(--cream); padding:6px 8px; text-align:right;" data-count="${i.id}" value="${esc(draftVal)}" placeholder="${fmtQty(i.stock, i.unit)}"></td>
+          <td class="text-right mono" id="variance-${i.id}">${varianceHtml}</td>
+        </tr>`;
+      }).join('')}
       </tbody></table>
       <button class="btn mt-16" id="run-reconciliation">Save today's closing stock</button>
     </div>
-    <div class="panel">
-      <div class="panel-title">Closing Stock History</div>
-      ${groups.length === 0 ? emptyState('No closing stock counts saved yet. Save your first count above.') : groups.map(g => `
-        <div class="mt-16" style="border-top:1px solid var(--line); padding-top:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <strong>${g.label}</strong>
-            <span class="text-dim" style="font-size:13px;">${g.entries.length} item(s) counted</span>
-          </div>
-          <table><thead><tr><th>Item</th><th class="text-right">System</th><th class="text-right">Closing Stock</th><th class="text-right">Variance</th></tr></thead><tbody>
-          ${g.entries.map(r => `<tr>
-            <td>${esc(r.itemName)}</td>
-            <td class="text-right mono">${r.systemStock}</td>
-            <td class="text-right mono"><strong>${r.physicalCount}</strong></td>
-            <td class="text-right mono"><span class="badge ${r.variance < 0 ? 'badge-red' : r.variance > 0 ? 'badge-copper' : 'badge-green'}">${r.variance > 0 ? '+' : ''}${r.variance}</span></td>
-          </tr>`).join('')}
-          </tbody></table>
-        </div>
-      `).join('')}
-    </div>
   `;
 }
-function groupReconciliationsByDay(entriesNewestFirst) {
-  const reversed = [...entriesNewestFirst].reverse();
-  const byDate = {};
-  const order = [];
-  reversed.forEach(r => {
-    const key = new Date(r.time).toDateString();
-    if (!byDate[key]) { byDate[key] = []; order.push(key); }
-    byDate[key].push(r);
-  });
-  return order.map(key => ({
-    label: key === todayStr() ? `Today — ${key}` : key,
-    entries: byDate[key],
-  }));
-}
-function bindReconciliation() {
+function bindClosingStockForm(onSaved) {
   document.querySelectorAll('[data-count]').forEach(inp => {
     inp.oninput = () => {
+      closingStockDraft[inp.dataset.count] = inp.value;
       const it = state.items.find(i => i.id === parseInt(inp.dataset.count));
       const val = parseFloat(inp.value);
       const cell = document.getElementById('variance-' + it.id);
@@ -844,12 +864,68 @@ function bindReconciliation() {
       entries.push({ itemId: parseInt(inp.dataset.count), physicalCount: val });
     });
     if (entries.length === 0) { toast('Enter at least one physical count.', 'error'); return; }
-    const data = await api('/reconciliation', { method: 'POST', body: { entries } });
+    const data = await api('/reconciliation', { method: 'POST', body: { entries, countedBy: state.currentUser.displayName } });
     if (!data.ok) { toast(data.error, 'error'); return; }
     toast(`Closing stock logged for ${data.logged} item(s).`, 'success');
+    closingStockDraft = {};
     await refreshState();
-    reRenderMain();
+    onSaved();
   };
+}
+function groupReconciliationsByDay(entriesNewestFirst) {
+  const reversed = [...entriesNewestFirst].reverse();
+  const byDate = {};
+  const order = [];
+  reversed.forEach(r => {
+    const key = new Date(r.time).toDateString();
+    if (!byDate[key]) { byDate[key] = []; order.push(key); }
+    byDate[key].push(r);
+  });
+  return order.map(key => {
+    const entries = byDate[key];
+    const moneyTotal = +entries.reduce((a, r) => a + (r.moneyVariance || 0), 0).toFixed(2);
+    return { key, label: key === todayStr() ? `Today — ${key}` : key, entries, moneyTotal };
+  });
+}
+function renderClosingStockHistory() {
+  const groups = groupReconciliationsByDay(state.reconciliations);
+  const filtered = closingStockDateFilter === 'all' ? groups : groups.filter(g => g.key === closingStockDateFilter);
+  return `
+    <div class="panel">
+      <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span>Closing Stock History</span>
+        ${groups.length > 0 ? `
+        <select id="closing-stock-date-filter" style="background:var(--ink); border:1px solid var(--line); border-radius:6px; color:var(--cream); padding:6px 10px; font-size:13px;">
+          <option value="all" ${closingStockDateFilter === 'all' ? 'selected' : ''}>All days</option>
+          ${groups.map(g => `<option value="${esc(g.key)}" ${closingStockDateFilter === g.key ? 'selected' : ''}>${esc(g.label)}</option>`).join('')}
+        </select>` : ''}
+      </div>
+      ${groups.length === 0 ? emptyState('No closing stock counts saved yet. Save your first count above.') : filtered.map(g => `
+        <div class="mt-16" style="border-top:1px solid var(--line); padding-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+            <strong>${g.label}</strong>
+            <span style="font-size:13px; font-weight:700; color:${g.moneyTotal < 0 ? 'var(--red)' : g.moneyTotal > 0 ? 'var(--gold-bright)' : 'var(--cream-dim)'}">
+              ${g.moneyTotal === 0 ? 'Fully accounted for' : g.moneyTotal < 0 ? `${fmtKES(Math.abs(g.moneyTotal))} worth of stock unaccounted for` : `${fmtKES(g.moneyTotal)} stock surplus`}
+            </span>
+          </div>
+          <table><thead><tr><th>Item</th><th class="text-right">System</th><th class="text-right">Closing Stock</th><th class="text-right">Variance</th><th class="text-right">Value</th></tr></thead><tbody>
+          ${g.entries.map(r => `<tr>
+            <td>${esc(r.itemName)}</td>
+            <td class="text-right mono">${r.systemStock}</td>
+            <td class="text-right mono"><strong>${r.physicalCount}</strong></td>
+            <td class="text-right mono"><span class="badge ${r.variance < 0 ? 'badge-red' : r.variance > 0 ? 'badge-copper' : 'badge-green'}">${r.variance > 0 ? '+' : ''}${r.variance}</span></td>
+            <td class="text-right mono">${fmtKES(r.moneyVariance || 0)}</td>
+          </tr>`).join('')}
+          </tbody></table>
+          ${g.entries[0] && g.entries[0].countedBy ? `<div class="text-dim mt-8" style="font-size:12px;">Counted by ${esc(g.entries[0].countedBy)}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+function bindClosingStockHistoryFilter(onChange) {
+  const sel = document.getElementById('closing-stock-date-filter');
+  if (sel) sel.onchange = () => { closingStockDateFilter = sel.value; onChange(); };
 }
 
 /* ---------- STAFF ---------- */
@@ -862,15 +938,15 @@ function pageStaff() {
     <div class="panel">
       <div class="panel-title">Add a seller</div>
       <div class="grid-2">
-        <div class="field"><label>Display name</label><input id="staff-name" placeholder="e.g. James"></div>
-        <div class="field"><label>Username</label><input id="staff-username" placeholder="e.g. james"></div>
+        <div class="field"><label>Display name</label><input id="staff-name" placeholder="e.g. James" value="${esc(staffDraft.name)}"></div>
+        <div class="field"><label>Username</label><input id="staff-username" placeholder="e.g. james" value="${esc(staffDraft.username)}"></div>
       </div>
-      <div class="field"><label>Password</label><input id="staff-password" type="text" placeholder="Set a password"></div>
+      <div class="field"><label>Password</label><input id="staff-password" type="text" placeholder="Set a password" value="${esc(staffDraft.password)}"></div>
       <button class="btn" id="add-staff-btn">Add seller</button>
     </div>
     <div class="panel">
       <div class="panel-title">Current Staff</div>
-      <table><thead><tr><th>Name</th><th>Username</th><th class="text-right">Sales Today</th><th class="text-right">Password</th></tr></thead><tbody>
+      <table><thead><tr><th>Name</th><th>Username</th><th class="text-right">Sales Today</th><th class="text-right">Password</th><th class="text-right">Remove</th></tr></thead><tbody>
       ${sellers.map(s => {
         const total = state.sales.filter(sale => sale.seller === s.displayName && isToday(sale.time)).reduce((a, x) => a + x.total, 0);
         return `<tr>
@@ -884,6 +960,9 @@ function pageStaff() {
               <button class="btn" style="padding:8px 14px;" data-save-pw="${esc(s.username)}">Save</button>
             </div>
           </td>
+          <td class="text-right">
+            <button class="btn-link remove-seller-btn" style="color:var(--red);" data-remove-username="${esc(s.username)}" data-remove-name="${esc(s.displayName)}">Remove</button>
+          </td>
         </tr>`;
       }).join('')}
       </tbody></table>
@@ -891,14 +970,22 @@ function pageStaff() {
   `;
 }
 function bindStaff() {
+  const nameEl = document.getElementById('staff-name');
+  const usernameEl = document.getElementById('staff-username');
+  const passwordEl = document.getElementById('staff-password');
+  nameEl.oninput = (e) => { staffDraft.name = e.target.value; };
+  usernameEl.oninput = (e) => { staffDraft.username = e.target.value; };
+  passwordEl.oninput = (e) => { staffDraft.password = e.target.value; };
+
   document.getElementById('add-staff-btn').onclick = async () => {
-    const name = document.getElementById('staff-name').value.trim();
-    const username = document.getElementById('staff-username').value.trim();
-    const password = document.getElementById('staff-password').value.trim();
+    const name = nameEl.value.trim();
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value.trim();
     if (!name || !username || !password) { toast('Fill in all fields.', 'error'); return; }
     const data = await api('/staff', { method: 'POST', body: { displayName: name, username, password } });
     if (!data.ok) { toast(data.error, 'error'); return; }
     toast(`${name} added as a seller.`, 'success');
+    staffDraft = { name: '', username: '', password: '' };
     await refreshState();
     reRenderMain();
   };
@@ -926,12 +1013,26 @@ function bindStaff() {
       input.value = '';
     };
   });
+
+  document.querySelectorAll('.remove-seller-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const name = btn.dataset.removeName;
+      const username = btn.dataset.removeUsername;
+      if (!confirm(`Remove ${name} (${username})? They will be logged out immediately and can no longer log in.`)) return;
+      const data = await api(`/staff/${username}`, { method: 'DELETE' });
+      if (!data.ok) { toast(data.error || 'Could not remove seller.', 'error'); return; }
+      toast(`${name} has been removed and can no longer access the system.`, 'success');
+      await refreshState();
+      reRenderMain();
+    };
+  });
 }
 
 /* ============================= SELLER SHELL (POS) ============================= */
 const SELLER_NAV = [
   { key: 'pos', label: 'Sell' },
   { key: 'debts', label: 'Debts' },
+  { key: 'closingstock', label: 'Closing Stock' },
   { key: 'history', label: 'My Sales' },
 ];
 
@@ -957,6 +1058,7 @@ function renderSellerShell() {
 function renderSellerPage() {
   if (route === 'history') return pageSellerHistory();
   if (route === 'debts') return pageSellerDebts();
+  if (route === 'closingstock') return pageSellerClosingStock();
   return pagePOS();
 }
 
@@ -971,6 +1073,7 @@ function bindSellerShell() {
 function bindSellerPage() {
   if (route === 'history') return;
   if (route === 'debts') return bindSellerDebts();
+  if (route === 'closingstock') return bindSellerClosingStock();
   bindPOS();
 }
 
@@ -1203,6 +1306,22 @@ function bindSellerDebts() {
       reRenderSellerMain();
     };
   });
+}
+
+/* ---------- SELLER CLOSING STOCK ---------- */
+function pageSellerClosingStock() {
+  return `
+    <div class="page-header">
+      <div><div class="page-eyebrow">End of Day</div><div class="page-title">Closing Stock</div>
+      <div class="page-sub">Count what's left on the shelf at close of business and save it — it shows up on the owner's side automatically.</div></div>
+    </div>
+    ${renderClosingStockForm()}
+    ${renderClosingStockHistory()}
+  `;
+}
+function bindSellerClosingStock() {
+  bindClosingStockForm(() => { reRenderSellerMain(); });
+  bindClosingStockHistoryFilter(() => { reRenderSellerMain(); });
 }
 
 /* ============================= BOOT ============================= */
