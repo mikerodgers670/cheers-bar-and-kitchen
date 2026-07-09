@@ -182,6 +182,30 @@ tr:last-child td { border-bottom: none; }
 
 .hidden { display: none !important; }
 .icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* ============================= SPLASH / INTRO SCREEN ============================= */
+.splash-screen { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: var(--ink); cursor: pointer; }
+.splash-image-wrap { position: absolute; inset: 0; overflow: hidden; }
+.splash-image { width: 100%; height: 100%; object-fit: cover; object-position: center 35%; animation: splashZoom 4.5s ease-out forwards; }
+.splash-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18,10,22,0.35) 0%, rgba(18,10,22,0.25) 45%, rgba(18,10,22,0.95) 100%); }
+@keyframes splashZoom { from { transform: scale(1.22); } to { transform: scale(1); } }
+.splash-content { position: relative; z-index: 2; text-align: center; padding: 0 20px; opacity: 0; animation: splashFadeUp 1s ease 0.5s forwards; }
+.splash-mark { width: 68px; height: 68px; margin: 0 auto 16px; background: var(--gold); clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 34px; color: var(--ink); box-shadow: 0 10px 44px rgba(242,183,5,0.4); animation: splashPulse 2.6s ease-in-out infinite 1.2s; }
+@keyframes splashPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.splash-title { font-family: var(--font-display); font-size: 50px; letter-spacing: 1.5px; color: var(--cream); text-shadow: 0 4px 24px rgba(0,0,0,0.55); }
+.splash-tagline { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 3.5px; text-transform: uppercase; color: var(--gold-bright); margin-top: 10px; }
+@keyframes splashFadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+.splash-tap { position: absolute; bottom: 38px; z-index: 2; font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cream-dim); opacity: 0; animation: splashFadeUp 0.8s ease 1.8s forwards, splashBlink 1.8s ease-in-out infinite 2.6s; }
+@keyframes splashBlink { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+.splash-drop { position: absolute; bottom: -20px; border-radius: 50% 50% 50% 0; background: rgba(255,210,63,0.55); animation-name: splashRise; animation-timing-function: ease-in; animation-iteration-count: infinite; }
+@keyframes splashRise { 0% { transform: translateY(0) rotate(45deg) scale(0.6); opacity: 0; } 15% { opacity: 0.9; } 100% { transform: translateY(-115vh) rotate(45deg) scale(1); opacity: 0; } }
+@media (max-width: 600px) { .splash-title { font-size: 34px; } .splash-mark { width: 56px; height: 56px; font-size: 28px; } }
+
+/* ============================= COPYRIGHT FOOTER (all pages) ============================= */
+.app-footer { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 60; text-align: center; font-size: 11px; color: var(--cream-dim); padding: 7px 10px; background: rgba(18,10,22,0.88); backdrop-filter: blur(4px); border-top: 1px solid var(--line); font-family: var(--font-mono); letter-spacing: 0.2px; }
+.app-footer a { color: var(--gold-bright); text-decoration: none; }
+.app-footer a:hover { text-decoration: underline; }
+@media (max-width: 600px) { .app-footer { font-size: 9.5px; padding: 6px 6px; } }
 </style>
 </head>
 <body>
@@ -298,6 +322,7 @@ function toast(msg, type = 'success') {
 
 /* ============================= ROUTER STATE ============================= */
 let route = 'dashboard'; // admin: dashboard/inventory/sales/butchery/reconciliation/staff | seller: pos/history
+let splashDone = false; // shows the intro splash screen once per page load, before the login screen
 let sellerCategoryFilter = 'All';
 let sellerSearch = '';
 let inventorySearch = '';
@@ -332,17 +357,69 @@ function setHTML(el, html) {
 function render() {
   const app = document.getElementById('app');
   if (!state.currentUser) {
-    setHTML(app, renderLogin());
+    if (!splashDone) {
+      setHTML(app, renderSplash());
+      bindSplash();
+      return;
+    }
+    setHTML(app, renderLogin() + renderFooter());
     bindLogin();
     return;
   }
   if (state.currentUser.role === 'admin') {
-    setHTML(app, renderAdminShell());
+    setHTML(app, renderAdminShell() + renderFooter());
     bindAdminShell();
   } else {
-    setHTML(app, renderSellerShell());
+    setHTML(app, renderSellerShell() + renderFooter());
     bindSellerShell();
   }
+}
+
+/* ============================= SPLASH / INTRO SCREEN ============================= */
+const SPLASH_IMAGE = 'images/splash-beer.webp';
+
+function renderSplash() {
+  // A handful of rising "bubble" drops for a bit of motion, positioned/timed pseudo-randomly.
+  const drops = Array.from({ length: 14 }).map((_, i) => {
+    const left = (i * 7.3 + (i % 3) * 11) % 100;
+    const size = 6 + (i % 5) * 3;
+    const duration = 4.5 + (i % 6) * 0.8;
+    const delay = (i * 0.35) % 5;
+    return `<div class="splash-drop" style="left:${left}%; width:${size}px; height:${size}px; animation-duration:${duration}s; animation-delay:${delay}s;"></div>`;
+  }).join('');
+  return `
+  <div class="splash-screen" id="splash-screen">
+    <div class="splash-image-wrap">
+      <img src="${SPLASH_IMAGE}" alt="Cheers" class="splash-image">
+      <div class="splash-overlay"></div>
+      ${drops}
+    </div>
+    <div class="splash-content">
+      <div class="splash-mark">C</div>
+      <div class="splash-title">CHEERS BAR &amp; KITCHEN</div>
+      <div class="splash-tagline">Stock &amp; Sales Control</div>
+    </div>
+    <div class="splash-tap">Tap anywhere to continue</div>
+  </div>`;
+}
+
+function bindSplash() {
+  const el = document.getElementById('splash-screen');
+  if (!el) return;
+  let advanced = false;
+  const proceed = () => {
+    if (advanced) return;
+    advanced = true;
+    splashDone = true;
+    render();
+  };
+  el.addEventListener('click', proceed);
+  setTimeout(proceed, 3400);
+}
+
+/* ============================= COPYRIGHT FOOTER (shown on every screen) ============================= */
+function renderFooter() {
+  return `<div class="app-footer">&copy; ${new Date().getFullYear()} Nova Codes &middot; Developed by <a href="mailto:mikerodgers357@gmail.com">mikerodgers357@gmail.com</a> &middot; Contact 0796703151</div>`;
 }
 
 /* ============================= LOGIN ============================= */
