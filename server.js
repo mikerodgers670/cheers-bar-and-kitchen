@@ -210,15 +210,18 @@ app.post('/api/debts/:id/settle', (req, res) => {
 --------------------------------------------------------------------- */
 app.post('/api/reconciliation', (req, res) => {
   const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+  const countedBy = (req.body?.countedBy || '').trim() || 'Admin';
   let logged = 0;
   entries.forEach(({ itemId, physicalCount }) => {
     const it = findItem(itemId);
     const val = parseFloat(physicalCount);
     if (!it || isNaN(val)) return;
     const variance = +(val - it.stock).toFixed(2);
+    const moneyVariance = +(variance * it.price).toFixed(2);
     db.reconciliations.push({
       id: nextId(), itemId: it.id, itemName: it.name,
-      systemStock: it.stock, physicalCount: val, variance, time: Date.now(),
+      systemStock: it.stock, physicalCount: val, variance,
+      price: it.price, moneyVariance, countedBy, time: Date.now(),
     });
     logged++;
   });
