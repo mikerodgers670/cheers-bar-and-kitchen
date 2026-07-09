@@ -360,21 +360,13 @@ function renderLogin() {
       <div id="login-error"></div>
       <div class="field">
         <label>Username</label>
-        <input id="login-username" type="text" value="admin" autocomplete="off">
+        <input id="login-username" type="text" placeholder="Enter your username" autocomplete="off">
       </div>
       <div class="field">
         <label>Password</label>
-        <input id="login-password" type="password" value="admin1234">
+        <input id="login-password" type="password" placeholder="Enter your password" autocomplete="off">
       </div>
       <button class="btn btn-block" id="login-btn">Log in</button>
-      <div class="mt-16" style="text-align:center; font-size:12px; color:var(--cream-dim);">
-        Default admin: <strong style="color:var(--cream)">admin / admin1234</strong> &middot;
-        Default seller: <strong style="color:var(--cream)">seller / seller1234</strong>
-      </div>
-      <div class="mt-16 flex-between gap-8">
-        <button class="btn btn-ghost btn-block btn-sm" id="quick-admin">Quick login: Admin</button>
-        <button class="btn btn-ghost btn-block btn-sm" id="quick-seller">Quick login: Seller</button>
-      </div>
     </div>
   </div>`;
 }
@@ -400,8 +392,6 @@ function bindLogin() {
     doLogin(document.getElementById('login-username').value.trim(), document.getElementById('login-password').value);
   };
   document.getElementById('login-password').onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('login-btn').click(); };
-  document.getElementById('quick-admin').onclick = () => doLogin('admin', 'admin1234');
-  document.getElementById('quick-seller').onclick = () => doLogin('seller', 'seller1234');
 }
 
 /* ============================= ADMIN SHELL ============================= */
@@ -587,13 +577,16 @@ function pageInventory() {
     <div class="panel">
       <div class="panel-title">Catalog (${items.length})</div>
       ${items.length === 0 ? emptyState('No items match your search.') : `
-      <table><thead><tr><th>Item</th><th>Category</th><th class="text-right">Price</th><th class="text-right">Stock</th><th class="text-right">Restock</th></tr></thead><tbody>
+      <table><thead><tr><th>Item</th><th>Category</th><th class="text-right">Price</th><th class="text-right">Stock</th><th class="text-right">Actions</th></tr></thead><tbody>
       ${items.map(i => `<tr>
         <td><strong>${esc(i.name)}</strong><div class="text-dim" style="font-size:12px;">${esc(i.brand)}</div></td>
         <td><span class="badge badge-copper">${i.category}</span></td>
         <td class="text-right mono">${fmtKES(i.price)}</td>
         <td class="text-right mono" style="color:${i.stock<=i.threshold?'var(--red)':'var(--cream)'}">${fmtQty(i.stock, i.unit)} ${i.unit}</td>
-        <td class="text-right"><button class="btn btn-ghost btn-sm" data-restock="${i.id}">+ Restock</button></td>
+        <td class="text-right">
+          <button class="btn-link" data-edit-price="${i.id}">Edit price</button>
+          <button class="btn btn-ghost btn-sm" data-restock="${i.id}">+ Restock</button>
+        </td>
       </tr>`).join('')}
       </tbody></table>`}
     </div>
@@ -640,6 +633,9 @@ function bindInventory() {
   document.querySelectorAll('[data-restock]').forEach(btn => {
     btn.onclick = () => openRestockModal(parseInt(btn.dataset.restock));
   });
+  document.querySelectorAll('[data-edit-price]').forEach(btn => {
+    btn.onclick = () => openPriceModal(parseInt(btn.dataset.editPrice));
+  });
 }
 
 function openRestockModal(itemId) {
@@ -664,6 +660,37 @@ function openRestockModal(itemId) {
     const data = await api(`/items/${it.id}/restock`, { method: 'POST', body: { qty } });
     if (!data.ok) { toast(data.error, 'error'); return; }
     toast(`Restocked ${fmtQty(qty, it.unit)} ${it.unit} of ${it.name}.`, 'success');
+    backdrop.remove();
+    await refreshState();
+    reRenderMain();
+  };
+}
+
+function openPriceModal(itemId) {
+  const it = state.items.find(i => i.id === itemId);
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">Edit price — ${esc(it.name)}</div>
+      <div class="page-sub mb-16">Current price: ${fmtKES(it.price)} per ${it.unit}</div>
+      <div class="field"><label>New price (KES per ${it.unit})</label><input id="edit-price-input" type="number" min="0" step="any" value="${it.price}" autofocus></div>
+      <div class="flex-between gap-8 mt-16">
+        <button class="btn btn-ghost btn-block" id="price-cancel">Cancel</button>
+        <button class="btn btn-block" id="price-confirm">Save new price</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('#price-cancel').onclick = () => backdrop.remove();
+  const input = document.getElementById('edit-price-input');
+  input.focus();
+  input.select();
+  backdrop.querySelector('#price-confirm').onclick = async () => {
+    const price = parseFloat(input.value);
+    if (isNaN(price) || price < 0) { toast('Enter a valid price.', 'error'); return; }
+    const data = await api(`/items/${it.id}/price`, { method: 'POST', body: { price } });
+    if (!data.ok) { toast(data.error, 'error'); return; }
+    toast(`${it.name} is now ${fmtKES(price)} per ${it.unit}.`, 'success');
     backdrop.remove();
     await refreshState();
     reRenderMain();
@@ -934,6 +961,15 @@ function pageStaff() {
   return `
     <div class="page-header">
       <div><div class="page-eyebrow">Team</div><div class="page-title">Staff</div><div class="page-sub">Sellers who can log in and record sales at the counter.</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">My Account</div>
+      <div class="page-sub mb-16">Logged in as <strong style="color:var(--cream)">${esc(state.currentUser.username)}</strong> (Admin)</div>
+      <button class="btn-link reset-pw-trigger" data-username="${esc(state.currentUser.username)}">Change my password</button>
+      <div class="reset-pw-row" id="reset-row-${esc(state.currentUser.username)}" style="display:none; margin-top:8px; gap:6px;">
+        <input class="reset-pw-input" type="text" id="reset-pw-${esc(state.currentUser.username)}" placeholder="New password">
+        <button class="btn" style="padding:8px 14px;" data-save-pw="${esc(state.currentUser.username)}">Save</button>
+      </div>
     </div>
     <div class="panel">
       <div class="panel-title">Add a seller</div>
