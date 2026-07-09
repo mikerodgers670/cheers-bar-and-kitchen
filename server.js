@@ -23,7 +23,7 @@ function seedData() {
   return {
     uid,
     users: [
-      { username: 'admin', password: 'admin1234', role: 'admin', displayName: 'Owner' },
+      { username: 'admin', password: 'admin2026', role: 'admin', displayName: 'Owner', recoveryPhone: '' },
     ],
     items: [
       item('Tusker Lager', 'Tusker', 'Beer', 'bottle', 250),
@@ -84,6 +84,13 @@ function publicUsers() {
 }
 function findItem(id) { return db.items.find(i => i.id === Number(id)); }
 
+/* Lenient phone comparison: strips everything but digits, then compares the
+   last 9 (so 0796703151, 796703151, +254796703151, 254796703151 all match). */
+function normalizePhone(p) {
+  const digits = String(p || '').replace(/\D/g, '');
+  return digits.slice(-9);
+}
+
 /* ---------------------------------------------------------------------
    AUTH
    Kept intentionally simple (no sessions/JWT): this is a small,
@@ -94,7 +101,7 @@ app.post('/api/login', (req, res) => {
   const { username, password } = req.body || {};
   const user = db.users.find(u => u.username === username && u.password === password);
   if (!user) return res.status(401).json({ ok: false, error: 'Incorrect username or password.' });
-  res.json({ ok: true, user: { username: user.username, role: user.role, displayName: user.displayName } });
+  res.json({ ok: true, user: { username: user.username, role: user.role, displayName: user.displayName, recoveryPhone: user.recoveryPhone || '' } });
 });
 
 /* ---------------------------------------------------------------------
@@ -264,6 +271,48 @@ app.post('/api/staff/:username/password', (req, res) => {
   const { password } = req.body || {};
   if (!password || !password.trim()) return res.status(400).json({ ok: false, error: 'Enter a new password.' });
   user.password = password.trim();
+  save();
+  res.json({ ok: true });
+});
+
+app.post('/api/staff/:username/recovery-phone', (req, res) => {
+  const user = db.users.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ ok: false, error: 'User not found.' });
+  const recoveryPhone = String(req.body?.recoveryPhone || '').trim();
+  user.recoveryPhone = recoveryPhone;
+  save();
+  res.json({ ok: true, recoveryPhone: user.recoveryPhone });
+});
+
+/* ---------------------------------------------------------------------
+   FORGOT PASSWORD (free, no SMS needed — matches against a recovery
+   phone number the account owner set up in advance from the Staff page)
+--------------------------------------------------------------------- */
+app.post('/api/forgot-password/verify', (req, res) => {
+  const { username, phone } = req.body || {};
+  const user = db.users.find(u => u.username === username);
+  if (!user || !user.recoveryPhone) {
+    return res.status(404).json({ ok: false, error: 'No recovery number is set up for that username yet.' });
+  }
+  if (normalizePhone(phone) !== normalizePhone(user.recoveryPhone)) {
+    return res.status(401).json({ ok: false, error: 'That phone number does not match our records.' });
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/forgot-password/reset', (req, res) => {
+  const { username, phone, newPassword } = req.body || {};
+  const user = db.users.find(u => u.username === username);
+  if (!user || !user.recoveryPhone) {
+    return res.status(404).json({ ok: false, error: 'No recovery number is set up for that username yet.' });
+  }
+  if (normalizePhone(phone) !== normalizePhone(user.recoveryPhone)) {
+    return res.status(401).json({ ok: false, error: 'That phone number does not match our records.' });
+  }
+  if (!newPassword || !newPassword.trim() || newPassword.trim().length < 4) {
+    return res.status(400).json({ ok: false, error: 'Choose a password with at least 4 characters.' });
+  }
+  user.password = newPassword.trim();
   save();
   res.json({ ok: true });
 });
