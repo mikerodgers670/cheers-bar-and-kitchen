@@ -124,6 +124,11 @@ tr:last-child td { border-bottom: none; }
 .text-dim { color: var(--cream-dim); }
 
 .badge { display: inline-block; padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+.btn-link { background: none; border: none; color: var(--gold-bright); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
+.btn-link:hover { background: rgba(212, 175, 55, 0.12); text-decoration: underline; }
+.reset-pw-row { display: flex; }
+.reset-pw-input { background: var(--ink); border: 1px solid var(--line); border-radius: 6px; color: var(--cream); padding: 8px 10px; font-size: 13px; width: 160px; }
+.reset-pw-input:focus { outline: none; border-color: var(--gold-bright); }
 .badge-green { background: rgba(126,163,90,0.18); color: #9cc478; }
 .badge-red { background: rgba(255,61,104,0.18); color: #e08b73; }
 .badge-copper { background: rgba(242,183,5,0.2); color: var(--gold-bright); }
@@ -287,6 +292,9 @@ let route = 'dashboard'; // admin: dashboard/inventory/sales/butchery/reconcilia
 let sellerCategoryFilter = 'All';
 let sellerSearch = '';
 let inventorySearch = '';
+/* Draft buffers: these hold in-progress form text so the 4s background sync
+   (refreshState -> render) never wipes out what someone is mid-typing. */
+let debtDraft = { customerName: '', phone: '', amount: '', itemName: '', note: '' };
 
 /* ============================= DOM UPDATE HELPER (keeps focus + cursor position across re-renders) ============================= */
 function setHTML(el, html) {
@@ -390,7 +398,7 @@ const ADMIN_NAV = [
   { key: 'sales', label: 'Sales Log' },
   { key: 'debts', label: 'Debts' },
   { key: 'butchery', label: 'Butchery' },
-  { key: 'reconciliation', label: 'Reconciliation' },
+  { key: 'reconciliation', label: 'Closing Stock' },
   { key: 'staff', label: 'Staff' },
 ];
 
@@ -635,16 +643,38 @@ function openRestockModal(itemId) {
 /* ---------- SALES LOG ---------- */
 function pageSalesLog() {
   const sales = [...state.sales].reverse();
+  const groups = groupSalesByDay(sales);
   return `
     <div class="page-header">
-      <div><div class="page-eyebrow">Records</div><div class="page-title">Sales Log</div><div class="page-sub">Every sale recorded by every seller, in order.</div></div>
+      <div><div class="page-eyebrow">Records</div><div class="page-title">Sales Log</div><div class="page-sub">Every sale recorded by every seller, organized day by day.</div></div>
     </div>
-    <div class="panel">
-      ${sales.length === 0 ? emptyState('No sales recorded yet. Log in as a seller to record one.') : renderRecentSalesTable(sales)}
-    </div>
+    ${groups.length === 0 ? `<div class="panel">${emptyState('No sales recorded yet. Log in as a seller to record one.')}</div>` : groups.map(g => `
+      <div class="panel">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>${g.label}</span>
+          <span class="text-dim" style="font-size:13px; font-weight:600;">${g.sales.length} sale(s) · <span class="mono">${fmtKES(g.total)}</span></span>
+        </div>
+        ${renderRecentSalesTable(g.sales)}
+      </div>
+    `).join('')}
   `;
 }
 function bindSalesLog() {}
+function groupSalesByDay(salesNewestFirst) {
+  const byDate = {};
+  const order = [];
+  salesNewestFirst.forEach(s => {
+    const key = new Date(s.time).toDateString();
+    if (!byDate[key]) { byDate[key] = []; order.push(key); }
+    byDate[key].push(s);
+  });
+  return order.map(key => {
+    const sales = byDate[key];
+    const total = sales.reduce((a, s) => a + s.total, 0);
+    const label = key === todayStr() ? `Today — ${key}` : key;
+    return { label, sales, total };
+  });
+}
 
 /* ---------- DEBTS (ADMIN) ---------- */
 function pageAdminDebts() {
@@ -742,13 +772,15 @@ function bindButchery() {
 /* ---------- RECONCILIATION ---------- */
 function pageReconciliation() {
   const items = state.items;
+  const groups = groupReconciliationsByDay(state.reconciliations);
   return `
     <div class="page-header">
-      <div><div class="page-eyebrow">Anti-theft</div><div class="page-title">Reconciliation</div>
-      <div class="page-sub">Physically count what's on the shelf, enter it below — a negative variance means stock is unaccounted for.</div></div>
+      <div><div class="page-eyebrow">End of Day</div><div class="page-title">Closing Stock</div>
+      <div class="page-sub">Count what's physically left on the shelf at close of business — this becomes today's official stock record, and builds a daily history you can look back on.</div></div>
     </div>
     <div class="panel">
-      <table><thead><tr><th>Item</th><th class="text-right">System Stock</th><th class="text-right">Physical Count</th><th class="text-right">Variance</th></tr></thead><tbody>
+      <div class="panel-title">Count today's closing stock</div>
+      <table><thead><tr><th>Item</th><th class="text-right">System Stock</th><th class="text-right">Closing Count</th><th class="text-right">Variance</th></tr></thead><tbody>
       ${items.map(i => `<tr>
         <td>${esc(i.name)}</td>
         <td class="text-right mono">${fmtQty(i.stock, i.unit)} ${i.unit}</td>
@@ -756,22 +788,42 @@ function pageReconciliation() {
         <td class="text-right mono" id="variance-${i.id}">—</td>
       </tr>`).join('')}
       </tbody></table>
-      <button class="btn mt-16" id="run-reconciliation">Run reconciliation</button>
+      <button class="btn mt-16" id="run-reconciliation">Save today's closing stock</button>
     </div>
     <div class="panel">
-      <div class="panel-title">Reconciliation History</div>
-      ${state.reconciliations.length === 0 ? emptyState('No reconciliations run yet.') : `
-      <table><thead><tr><th>Time</th><th>Item</th><th class="text-right">System</th><th class="text-right">Counted</th><th class="text-right">Variance</th></tr></thead><tbody>
-      ${state.reconciliations.slice().reverse().map(r => `<tr>
-        <td class="mono text-dim">${fmtTime(r.time)}</td>
-        <td>${esc(r.itemName)}</td>
-        <td class="text-right mono">${r.systemStock}</td>
-        <td class="text-right mono">${r.physicalCount}</td>
-        <td class="text-right mono"><span class="badge ${r.variance < 0 ? 'badge-red' : r.variance > 0 ? 'badge-copper' : 'badge-green'}">${r.variance > 0 ? '+' : ''}${r.variance}</span></td>
-      </tr>`).join('')}
-      </tbody></table>`}
+      <div class="panel-title">Closing Stock History</div>
+      ${groups.length === 0 ? emptyState('No closing stock counts saved yet. Save your first count above.') : groups.map(g => `
+        <div class="mt-16" style="border-top:1px solid var(--line); padding-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong>${g.label}</strong>
+            <span class="text-dim" style="font-size:13px;">${g.entries.length} item(s) counted</span>
+          </div>
+          <table><thead><tr><th>Item</th><th class="text-right">System</th><th class="text-right">Closing Stock</th><th class="text-right">Variance</th></tr></thead><tbody>
+          ${g.entries.map(r => `<tr>
+            <td>${esc(r.itemName)}</td>
+            <td class="text-right mono">${r.systemStock}</td>
+            <td class="text-right mono"><strong>${r.physicalCount}</strong></td>
+            <td class="text-right mono"><span class="badge ${r.variance < 0 ? 'badge-red' : r.variance > 0 ? 'badge-copper' : 'badge-green'}">${r.variance > 0 ? '+' : ''}${r.variance}</span></td>
+          </tr>`).join('')}
+          </tbody></table>
+        </div>
+      `).join('')}
     </div>
   `;
+}
+function groupReconciliationsByDay(entriesNewestFirst) {
+  const reversed = [...entriesNewestFirst].reverse();
+  const byDate = {};
+  const order = [];
+  reversed.forEach(r => {
+    const key = new Date(r.time).toDateString();
+    if (!byDate[key]) { byDate[key] = []; order.push(key); }
+    byDate[key].push(r);
+  });
+  return order.map(key => ({
+    label: key === todayStr() ? `Today — ${key}` : key,
+    entries: byDate[key],
+  }));
 }
 function bindReconciliation() {
   document.querySelectorAll('[data-count]').forEach(inp => {
@@ -794,7 +846,7 @@ function bindReconciliation() {
     if (entries.length === 0) { toast('Enter at least one physical count.', 'error'); return; }
     const data = await api('/reconciliation', { method: 'POST', body: { entries } });
     if (!data.ok) { toast(data.error, 'error'); return; }
-    toast(`Reconciliation logged for ${data.logged} item(s).`, 'success');
+    toast(`Closing stock logged for ${data.logged} item(s).`, 'success');
     await refreshState();
     reRenderMain();
   };
@@ -818,10 +870,21 @@ function pageStaff() {
     </div>
     <div class="panel">
       <div class="panel-title">Current Staff</div>
-      <table><thead><tr><th>Name</th><th>Username</th><th class="text-right">Sales Today</th></tr></thead><tbody>
+      <table><thead><tr><th>Name</th><th>Username</th><th class="text-right">Sales Today</th><th class="text-right">Password</th></tr></thead><tbody>
       ${sellers.map(s => {
         const total = state.sales.filter(sale => sale.seller === s.displayName && isToday(sale.time)).reduce((a, x) => a + x.total, 0);
-        return `<tr><td>${esc(s.displayName)}</td><td class="mono text-dim">${esc(s.username)}</td><td class="text-right mono">${fmtKES(total)}</td></tr>`;
+        return `<tr>
+          <td>${esc(s.displayName)}</td>
+          <td class="mono text-dim">${esc(s.username)}</td>
+          <td class="text-right mono">${fmtKES(total)}</td>
+          <td class="text-right">
+            <button class="btn-link reset-pw-trigger" data-username="${esc(s.username)}">Reset password</button>
+            <div class="reset-pw-row" id="reset-row-${esc(s.username)}" style="display:none; margin-top:8px; justify-content:flex-end; gap:6px;">
+              <input class="reset-pw-input" type="text" id="reset-pw-${esc(s.username)}" placeholder="New password">
+              <button class="btn" style="padding:8px 14px;" data-save-pw="${esc(s.username)}">Save</button>
+            </div>
+          </td>
+        </tr>`;
       }).join('')}
       </tbody></table>
     </div>
@@ -839,6 +902,30 @@ function bindStaff() {
     await refreshState();
     reRenderMain();
   };
+
+  document.querySelectorAll('.reset-pw-trigger').forEach(btn => {
+    btn.onclick = () => {
+      const row = document.getElementById('reset-row-' + btn.dataset.username);
+      const isOpen = row.style.display !== 'none';
+      document.querySelectorAll('.reset-pw-row').forEach(r => r.style.display = 'none');
+      row.style.display = isOpen ? 'none' : 'flex';
+      if (!isOpen) document.getElementById('reset-pw-' + btn.dataset.username).focus();
+    };
+  });
+
+  document.querySelectorAll('[data-save-pw]').forEach(btn => {
+    btn.onclick = async () => {
+      const username = btn.dataset.savePw;
+      const input = document.getElementById('reset-pw-' + username);
+      const newPassword = input.value.trim();
+      if (!newPassword) { toast('Enter a new password.', 'error'); return; }
+      const data = await api(`/staff/${username}/password`, { method: 'POST', body: { password: newPassword } });
+      if (!data.ok) { toast(data.error, 'error'); return; }
+      toast(`Password updated for ${username}.`, 'success');
+      document.getElementById('reset-row-' + username).style.display = 'none';
+      input.value = '';
+    };
+  });
 }
 
 /* ============================= SELLER SHELL (POS) ============================= */
@@ -1015,17 +1102,24 @@ function showReceipt(sale) {
 function pageSellerHistory() {
   const mySales = state.sales.filter(s => s.seller === state.currentUser.displayName).slice().reverse();
   const todayTotal = mySales.filter(s => isToday(s.time)).reduce((a, s) => a + s.total, 0);
+  const groups = groupSalesByDay(mySales);
   return `
     <div class="page-header">
-      <div><div class="page-eyebrow">Personal</div><div class="page-title">My Sales</div><div class="page-sub">Everything you've recorded this session.</div></div>
+      <div><div class="page-eyebrow">Personal</div><div class="page-title">My Sales</div><div class="page-sub">Everything you've recorded, organized day by day.</div></div>
     </div>
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-label">Today's Total</div><div class="stat-value">${fmtKES(todayTotal)}</div></div>
       <div class="stat-card"><div class="stat-label">Sales Recorded</div><div class="stat-value">${mySales.length}</div></div>
     </div>
-    <div class="panel">
-      ${mySales.length === 0 ? emptyState('You have not recorded any sales yet.') : renderRecentSalesTable(mySales)}
-    </div>
+    ${groups.length === 0 ? `<div class="panel">${emptyState('You have not recorded any sales yet.')}</div>` : groups.map(g => `
+      <div class="panel">
+        <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>${g.label}</span>
+          <span class="text-dim" style="font-size:13px; font-weight:600;">${g.sales.length} sale(s) · <span class="mono">${fmtKES(g.total)}</span></span>
+        </div>
+        ${renderRecentSalesTable(g.sales)}
+      </div>
+    `).join('')}
   `;
 }
 
@@ -1040,14 +1134,14 @@ function pageSellerDebts() {
     <div class="panel">
       <div class="panel-title">New debt</div>
       <div class="grid-2">
-        <div class="field"><label>Customer name</label><input id="debt-name" placeholder="e.g. Peter Mwangi"></div>
-        <div class="field"><label>Phone number</label><input id="debt-phone" placeholder="e.g. 0712345678"></div>
+        <div class="field"><label>Customer name</label><input id="debt-name" placeholder="e.g. Peter Mwangi" value="${esc(debtDraft.customerName)}"></div>
+        <div class="field"><label>Phone number</label><input id="debt-phone" placeholder="e.g. 0712345678" value="${esc(debtDraft.phone)}"></div>
       </div>
       <div class="grid-2">
-        <div class="field"><label>Amount (KES)</label><input id="debt-amount" type="number" min="0" placeholder="500"></div>
-        <div class="field"><label>Item / description (optional)</label><input id="debt-item" placeholder="e.g. 2x Tusker"></div>
+        <div class="field"><label>Amount (KES)</label><input id="debt-amount" type="number" min="0" placeholder="500" value="${esc(debtDraft.amount)}"></div>
+        <div class="field"><label>Item / description (optional)</label><input id="debt-item" placeholder="e.g. 2x Tusker" value="${esc(debtDraft.itemName)}"></div>
       </div>
-      <div class="field"><label>Note (optional)</label><input id="debt-note" placeholder="Any extra detail"></div>
+      <div class="field"><label>Note (optional)</label><input id="debt-note" placeholder="Any extra detail" value="${esc(debtDraft.note)}"></div>
       <button class="btn" id="save-debt-btn">Record debt</button>
     </div>
     <div class="stat-grid">
@@ -1056,25 +1150,37 @@ function pageSellerDebts() {
     <div class="panel">
       <div class="panel-title">My recorded debts</div>
       ${myDebts.length === 0 ? emptyState('You have not recorded any debts yet.') : `
-      <table><thead><tr><th>Customer</th><th>Phone</th><th>Item</th><th class="text-right">Amount</th><th class="text-right">Status</th></tr></thead><tbody>
+      <table><thead><tr><th>Customer</th><th>Phone</th><th>Item</th><th class="text-right">Amount</th><th class="text-right">Status</th><th></th></tr></thead><tbody>
       ${myDebts.map(d => `<tr>
         <td><strong>${esc(d.customerName)}</strong></td>
         <td class="mono">${esc(d.phone)}</td>
         <td>${esc(d.itemName || '—')}</td>
         <td class="text-right mono">${fmtKES(d.amount)}</td>
         <td class="text-right"><span class="badge ${d.settled ? 'badge-green' : 'badge-red'}">${d.settled ? 'Settled' : 'Owing'}</span></td>
+        <td class="text-right">${d.settled ? '' : `<button class="btn-link clear-debt-btn" data-clear="${d.id}">Mark cleared</button>`}</td>
       </tr>`).join('')}
       </tbody></table>`}
     </div>
   `;
 }
 function bindSellerDebts() {
+  const nameEl = document.getElementById('debt-name');
+  const phoneEl = document.getElementById('debt-phone');
+  const amountEl = document.getElementById('debt-amount');
+  const itemEl = document.getElementById('debt-item');
+  const noteEl = document.getElementById('debt-note');
+  nameEl.oninput = (e) => { debtDraft.customerName = e.target.value; };
+  phoneEl.oninput = (e) => { debtDraft.phone = e.target.value; };
+  amountEl.oninput = (e) => { debtDraft.amount = e.target.value; };
+  itemEl.oninput = (e) => { debtDraft.itemName = e.target.value; };
+  noteEl.oninput = (e) => { debtDraft.note = e.target.value; };
+
   document.getElementById('save-debt-btn').onclick = async () => {
-    const customerName = document.getElementById('debt-name').value.trim();
-    const phone = document.getElementById('debt-phone').value.trim();
-    const amount = parseFloat(document.getElementById('debt-amount').value);
-    const itemName = document.getElementById('debt-item').value.trim();
-    const note = document.getElementById('debt-note').value.trim();
+    const customerName = nameEl.value.trim();
+    const phone = phoneEl.value.trim();
+    const amount = parseFloat(amountEl.value);
+    const itemName = itemEl.value.trim();
+    const note = noteEl.value.trim();
     if (!customerName || !phone || isNaN(amount) || amount <= 0) {
       toast('Customer name, phone, and a valid amount are required.', 'error');
       return;
@@ -1082,9 +1188,21 @@ function bindSellerDebts() {
     const data = await api('/debts', { method: 'POST', body: { customerName, phone, amount, itemName, note, seller: state.currentUser.displayName } });
     if (!data.ok) { toast(data.error, 'error'); return; }
     toast(`Debt of ${fmtKES(amount)} recorded for ${customerName}.`, 'success');
+    debtDraft = { customerName: '', phone: '', amount: '', itemName: '', note: '' };
     await refreshState();
     reRenderSellerMain();
   };
+
+  document.querySelectorAll('.clear-debt-btn').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Mark this debt as cleared? This cannot be undone.')) return;
+      const data = await api(`/debts/${btn.dataset.clear}/settle`, { method: 'POST' });
+      if (!data.ok) { toast(data.error, 'error'); return; }
+      toast('Debt marked as cleared — the owner will see this update.', 'success');
+      await refreshState();
+      reRenderSellerMain();
+    };
+  });
 }
 
 /* ============================= BOOT ============================= */
