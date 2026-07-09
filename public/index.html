@@ -308,6 +308,7 @@ let closingStockDraft = {}; // itemId -> typed string, survives the 4s poll
 let closingStockDateFilter = 'all';
 let staffDraft = { name: '', username: '', password: '' };
 let itemDraft = { name: '', brand: '', category: 'Beer', unit: 'bottle', price: '', stock: '', threshold: '' };
+let passwordResetDraft = { openFor: null, value: '' }; // which username's reset row is open, and what's typed so far
 
 /* ============================= DOM UPDATE HELPER (keeps focus + cursor position across re-renders) ============================= */
 function setHTML(el, html) {
@@ -966,8 +967,8 @@ function pageStaff() {
       <div class="panel-title">My Account</div>
       <div class="page-sub mb-16">Logged in as <strong style="color:var(--cream)">${esc(state.currentUser.username)}</strong> (Admin)</div>
       <button class="btn-link reset-pw-trigger" data-username="${esc(state.currentUser.username)}">Change my password</button>
-      <div class="reset-pw-row" id="reset-row-${esc(state.currentUser.username)}" style="display:none; margin-top:8px; gap:6px;">
-        <input class="reset-pw-input" type="text" id="reset-pw-${esc(state.currentUser.username)}" placeholder="New password">
+      <div class="reset-pw-row" id="reset-row-${esc(state.currentUser.username)}" style="display:${passwordResetDraft.openFor === state.currentUser.username ? 'flex' : 'none'}; margin-top:8px; gap:6px;">
+        <input class="reset-pw-input" type="text" id="reset-pw-${esc(state.currentUser.username)}" placeholder="New password" value="${passwordResetDraft.openFor === state.currentUser.username ? esc(passwordResetDraft.value) : ''}">
         <button class="btn" style="padding:8px 14px;" data-save-pw="${esc(state.currentUser.username)}">Save</button>
       </div>
     </div>
@@ -991,8 +992,8 @@ function pageStaff() {
           <td class="text-right mono">${fmtKES(total)}</td>
           <td class="text-right">
             <button class="btn-link reset-pw-trigger" data-username="${esc(s.username)}">Reset password</button>
-            <div class="reset-pw-row" id="reset-row-${esc(s.username)}" style="display:none; margin-top:8px; justify-content:flex-end; gap:6px;">
-              <input class="reset-pw-input" type="text" id="reset-pw-${esc(s.username)}" placeholder="New password">
+            <div class="reset-pw-row" id="reset-row-${esc(s.username)}" style="display:${passwordResetDraft.openFor === s.username ? 'flex' : 'none'}; margin-top:8px; justify-content:flex-end; gap:6px;">
+              <input class="reset-pw-input" type="text" id="reset-pw-${esc(s.username)}" placeholder="New password" value="${passwordResetDraft.openFor === s.username ? esc(passwordResetDraft.value) : ''}">
               <button class="btn" style="padding:8px 14px;" data-save-pw="${esc(s.username)}">Save</button>
             </div>
           </td>
@@ -1028,12 +1029,18 @@ function bindStaff() {
 
   document.querySelectorAll('.reset-pw-trigger').forEach(btn => {
     btn.onclick = () => {
-      const row = document.getElementById('reset-row-' + btn.dataset.username);
+      const username = btn.dataset.username;
+      const row = document.getElementById('reset-row-' + username);
       const isOpen = row.style.display !== 'none';
       document.querySelectorAll('.reset-pw-row').forEach(r => r.style.display = 'none');
       row.style.display = isOpen ? 'none' : 'flex';
-      if (!isOpen) document.getElementById('reset-pw-' + btn.dataset.username).focus();
+      passwordResetDraft = isOpen ? { openFor: null, value: '' } : { openFor: username, value: '' };
+      if (!isOpen) document.getElementById('reset-pw-' + username).focus();
     };
+  });
+
+  document.querySelectorAll('.reset-pw-input').forEach(inp => {
+    inp.oninput = () => { passwordResetDraft.value = inp.value; };
   });
 
   document.querySelectorAll('[data-save-pw]').forEach(btn => {
@@ -1046,6 +1053,7 @@ function bindStaff() {
       if (!data.ok) { toast(data.error, 'error'); return; }
       toast(`Password updated for ${username}.`, 'success');
       document.getElementById('reset-row-' + username).style.display = 'none';
+      passwordResetDraft = { openFor: null, value: '' };
       input.value = '';
     };
   });
